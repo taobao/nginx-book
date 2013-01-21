@@ -6,12 +6,12 @@
 .. toctree::
    :maxdepth: 3
  
-   chapter_1.rst
-   chapter_2.rst
-   chapter_3.rst
-   chapter_4.rst
-   chapter_5.rst
-   chapter_6.rst
-   chapter_7.rst
+   chapter_01.rst
+   chapter_02rst
+   chapter_03.rst
+   chapter_04.rst
+   chapter_05.rst
+   chapter_06.rst
+   chapter_07.rst
 
 

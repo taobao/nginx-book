@@ -80,7 +80,7 @@ Nginx代码风格图示 (100%)
 
 17、多行注释的格式为：
 
-.. code-block:: none
+.. code:: c
 
     /*
      * something

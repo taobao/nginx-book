@@ -42,7 +42,7 @@ event模块的主要功能就是，监听accept后建立的连接，对读写事
 
 特别对于Linux，Nginx采用的是epoll的EPOLLET（边沿触发）的方法来触发事件，而不是EPOLLLT（水平触发），所以如果出现了可读事件，进行处理时，必须读取所有的可读数据，否则可能会出现读事件不再触发，连接饿死的情况。
 
-.. code-block:: none
+.. code:: c
 		
 		typedef struct {
 			/* 添加删除事件 */
@@ -74,7 +74,7 @@ Nginx是多进程程序，80端口是各进程所共享的，多进程同时list
 
 Nginx事件处理的入口函数是ngx_process_events_and_timers()，下面是部分代码，可以看到其加锁的过程：
 
-.. code-block:: none
+.. code:: c
 
 		if (ngx_use_accept_mutex) {
 			if (ngx_accept_disabled > 0) {
@@ -100,7 +100,7 @@ Nginx事件处理的入口函数是ngx_process_events_and_timers()，下面是�
 
 在ngx_trylock_accept_mutex()函数里面，如果拿到了锁，Nginx会把listen的端口读事件加入event处理，该进程在有新连接进来时就可以进行accept了。注意accept操作是一个普通的读事件。下面的代码说明了这点：
 
-.. code-block:: none
+.. code:: c
 
 		(void) ngx_process_events(cycle, timer, flags);
 
@@ -122,7 +122,7 @@ ngx_posted_accept_events和ngx_posted_events就分别是accept延迟事件队列
 
 比如，在ngx_event_accept函数中，有类似代码：       
 
-.. code-block:: none
+.. code:: c
 
 		ngx_accept_disabled = ngx_cycle->connection_n / 8
                               - ngx_cycle->free_connection_n;

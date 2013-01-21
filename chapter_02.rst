@@ -37,7 +37,7 @@ nginx在启动后，在unix系统中会以daemon的方式在后台运行，后�
 
 我们可以用一段伪代码来总结一下nginx的事件处理模型：
 
-.. code-block:: none
+.. code:: c
 
     while (true) {
         for t in run_tasks:
@@ -85,7 +85,7 @@ connection
 
 那么，我们前面有说过一个客户端连接过来后，多个空闲的进程，会竞争这个连接，很容易看到，这种竞争会导致不公平，如果某个进程得到accept的机会比较多，它的空闲连接很快就用完了，如果不提前做一些控制，当accept到一个新的tcp连接后，因为无法得到空闲连接，而且无法将此连接转交给其它进程，最终会导致此tcp连接得不到处理，就中止掉了。很显然，这是不公平的，有的进程有空余连接，却没有处理机会，有的进程因为没有空余连接，却人为地丢弃连接。那么，如何解决这个问题呢？首先，nginx的处理得先打开accept_mutex选项，此时，只有获得了accept_mutex的进程才会去添加accept事件，也就是说，nginx会控制进程是否添加accept事件。nginx使用一个叫ngx_accept_disabled的变量来控制是否去竞争accept_mutex锁。在第一段代码中，计算ngx_accept_disabled的值，这个值是nginx单进程的所有连接总数的八分之一，减去剩下的空闲连接数量，得到的这个ngx_accept_disabled有一个规律，当剩余连接数小于总连接数的八分之一时，其值才大于0，而且剩余的连接数越小，这个值越大。再看第二段代码，当ngx_accept_disabled大于0时，不会去尝试获取accept_mutex锁，并且将ngx_accept_disabled减1，于是，每次执行到此处时，都会去减1，直到小于0。不去获取accept_mutex锁，就是等于让出获取连接的机会，很显然可以看出，当空余连接越少时，ngx_accept_disable越大，于是让出的机会就越多，这样其它进程获取锁的机会也就越大。不去accept，自己的连接就控制下来了，其它进程的连接池就会得到利用，这样，nginx就控制了多进程间连接的平衡了。
 
-.. code-block:: none
+.. code:: c
 
     ngx_accept_disabled = ngx_cycle->connection_n / 8
         - ngx_cycle->free_connection_n;
@@ -172,7 +172,7 @@ ngx_str_t(100%)
 ~~~~~~~~~~~~~~~~~~
 在nginx源码目录的src/core下面的ngx_string.h|c里面，包含了字符串的封装以及字符串相关操作的api。nginx提供了一个带长度的字符串结构ngx_str_t，它的原型如下：
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         size_t      len;
@@ -185,25 +185,25 @@ ngx_str_t(100%)
 接下来，看看nginx提供的操作字符串相关的api。
 
 
-.. code-block:: none
+.. code:: c
 
     ngx_string(str)
 
 初始化一个字符串为str，str必须为常量字符串，  一般只用于声明字符串变量时顺便初始化变量的值。
 
-.. code-block:: none
+.. code:: c
 
     ngx_null_string
 
 声明变量时，初始化字符串为空字符串，符串的长度为0，data为NULL。
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_set(str, text)
 
 设置字符串str为text，text必须为常量字符串。
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_null(str) 
 
@@ -211,7 +211,7 @@ ngx_str_t(100%)
 
 上面这四个函数，使用时一定要小心，ngx_string与ngx_null_string只能用于赋值时初始化，如：
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_t str = ngx_string("hello world");
     ngx_str_t str1 = ngx_null_string();
@@ -219,7 +219,7 @@ ngx_str_t(100%)
 如果这样使用，就会有问题：
 
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_t str, str1;
     str = ngx_string("hello world");    // 编译出错
@@ -227,7 +227,7 @@ ngx_str_t(100%)
 
 这种情况，可以调用ngx_str_set与ngx_str_null这两个函数来做:
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_t str, str1;
     ngx_str_set(str, "hello world");    
@@ -235,51 +235,51 @@ ngx_str_t(100%)
 
 不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误。如： 
 
-.. code-block:: none
+.. code:: c
 
    ngx_str_t str;
    u_char *a = "hello world";
    ngx_str_set(str, a);    // 问题产生
 
 
-.. code-block:: none
+.. code:: c
 
    void ngx_strlow(u_char *dst, u_char *src, size_t n);
 
 将src的前n个字符转换成小写存放在dst字符串当中，调用者需要保证dst指向的空间大于等于n。操作不会对原字符串产生变动。如要更改原字符串，可以：
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_t str = ngx_string("hello world");
     ngx_strlow(str->data, str->data, str->len);
 
 
-.. code-block:: none
+.. code:: c
 
     ngx_strncmp(s1, s2, n)
 
 不区分大小写的字符串比较，只比较前n个字符。
 
 
-.. code-block:: none
+.. code:: c
 
     ngx_strcmp(s1, s2)
 
 不区分大小写的不带长度的字符串比较。
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_strcasecmp(u_char *s1, u_char *s2);
 
 区分大小写的不带长度的字符串比较。
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_strncasecmp(u_char *s1, u_char *s2, size_t n);
 
 区分大小写的带长度的字符串比较，只比较前n个字符。
 
-.. code-block:: none
+.. code:: c
 
     u_char * ngx_cdecl ngx_sprintf(u_char *buf, const char *fmt, ...);
     u_char * ngx_cdecl ngx_snprintf(u_char *buf, size_t max, const char *fmt, ...);
@@ -287,7 +287,7 @@ ngx_str_t(100%)
 
 上面这三个函数用于字符串格式化，ngx_snprintf的第二个参数max指明buf的空间大小，ngx_slprintf则通过last来指明buf空间的大小。推荐使用第二个或第三个函数来格式化字符串，ngx_sprintf函数还是比较危险的，容易产生缓冲区溢出漏洞。在这一系列函数中，nginx在兼容glibc中格式化字符串的形式之外，还添加了一些方便格式化nginx类型的一些转义字符，比如%V用于格式化ngx_str_t结构。在nginx源文件的ngx_string.c中有说明：
 
-.. code-block:: none
+.. code:: c
 
     /*
      * supported formats:
@@ -322,27 +322,27 @@ ngx_str_t(100%)
 
 这里特别要提醒的是，我们最常用于格式化ngx_str_t结构，其对应的转义符是%V，传给函数的一定要是指针类型，否则程序就会coredump掉。这也是我们最容易犯的错。比如：
 
-.. code-block:: none
+.. code:: c
 
     ngx_str_t str = ngx_string("hello world");
     char buffer[1024];
     ngx_snprintf(buffer, 1024, "%V", &str);    // 注意，str取地址
 
-.. code-block:: none
+.. code:: c
 
     void ngx_encode_base64(ngx_str_t *dst, ngx_str_t *src);
     ngx_int_t ngx_decode_base64(ngx_str_t *dst, ngx_str_t *src);
 
 这两个函数用于对str进行base64编码与解码，调用前，需要保证dst中有足够的空间来存放结果，如果不知道具体大小，可先调用ngx_base64_encoded_length与ngx_base64_decoded_length来预估最大占用空间。
 
-.. code-block:: none
+.. code:: c
 
     uintptr_t ngx_escape_uri(u_char *dst, u_char *src, size_t size,
         ngx_uint_t type);
 
 对src进行编码，根据type来按不同的方式进行编码，如果dst为NULL，则返回需要转义的字符的数量，由此可得到需要的空间大小。type的类型可以是：
 
-.. code-block:: none
+.. code:: c
 
     #define NGX_ESCAPE_URI         0
     #define NGX_ESCAPE_ARGS        1
@@ -351,13 +351,13 @@ ngx_str_t(100%)
     #define NGX_ESCAPE_MEMCACHED   4
     #define NGX_ESCAPE_MAIL_AUTH   5
 
-.. code-block:: none
+.. code:: c
 
     void ngx_unescape_uri(u_char **dst, u_char **src, size_t size, ngx_uint_t type);
 
 对src进行反编码，type可以是0、NGX_UNESCAPE_URI、NGX_UNESCAPE_REDIRECT这三个值。如果是0，则表示src中的所有字符都要进行转码。如果是NGX_UNESCAPE_URI与NGX_UNESCAPE_REDIRECT，则遇到'?'后就结束了，后面的字符就不管了。而NGX_UNESCAPE_URI与NGX_UNESCAPE_REDIRECT之间的区别是NGX_UNESCAPE_URI对于遇到的需要转码的字符，都会转码，而NGX_UNESCAPE_REDIRECT则只会对非可见字符进行转码。
 
-.. code-block:: none
+.. code:: c
 
     uintptr_t ngx_escape_html(u_char *dst, u_char *src, size_t size);
 
@@ -380,7 +380,7 @@ ngx_pool_t是一个非常重要的数据结构，在很多重要的场合都有�
 
 ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 
-.. code-block:: none 
+.. code:: c 
 
     typedef struct ngx_pool_s        ngx_pool_t; 
 
@@ -399,7 +399,7 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 
 下面我们来分别解释下ngx_pool_t的相关操作。
 
-.. code-block:: none  
+.. code:: c  
 
     ngx_pool_t *ngx_create_pool(size_t size, ngx_log_t *log);
                                                               
@@ -413,28 +413,28 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 当一个ngx_pool_t对象被创建以后，改对象的max字段被赋值为size-sizeof(ngx_pool_t)和NGX_MAX_ALLOC_FROM_POOL这两者中比较小的。后续的从这个pool中分配的内存块，在第一块内存使用完成以后，如果要继续分配的话，就需要继续从操作系统申请内存。当内存的大小小于等于max字段的时候，则分配新的内存块，链接在d这个字段（实际上是d.next字段）管理的一条链表上。当要分配的内存块是比max大的，那么从系统中申请的内存是被挂接在large字段管理的一条链表上。我们暂且把这个称之为大块内存链和小块内存链。
 
 
-.. code-block:: none   
+.. code:: c   
 
     void *ngx_palloc(ngx_pool_t *pool, size_t size); 
 
 从这个pool中分配一块为size大小的内存。注意，此函数分配的内存的起始地址按照NGX_ALIGNMENT进行了对齐。对齐操作会提高系统处理的速度，但会造成少量内存的浪费。 
 
 
-.. code-block:: none   
+.. code:: c   
 
     void *ngx_pnalloc(ngx_pool_t *pool, size_t size); 
 
 从这个pool中分配一块为size大小的内存。但是此函数分配的内存并没有像上面的函数那样进行过对齐。
 
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_pcalloc(ngx_pool_t *pool, size_t size);
 
 该函数也是分配size大小的内存，并且对分配的内存块进行了清零。内部实际上是转调用ngx_palloc实现的。 
 
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size);
 
@@ -445,14 +445,14 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 这个函数实际上也是使用ngx_palloc实现的。
 
 
-.. code-block:: none 
+.. code:: c 
 
     void *ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment);
 
 按照指定对齐大小alignment来申请一块大小为size的内存。此处获取的内存不管大小都将被置于大内存块链中管理。 
 
 
-.. code-block:: none  
+.. code:: c  
 
     ngx_int_t ngx_pfree(ngx_pool_t *pool, void *p);
 
@@ -461,13 +461,13 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 由于这个操作效率比较低下，除非必要，也就是说这块内存非常大，确应及时释放，否则一般不需要调用。反正内存在这个pool被销毁的时候，总归会都释放掉的嘛！
 
 
-.. code-block:: none 
+.. code:: c 
 
     ngx_pool_cleanup_t *ngx_pool_cleanup_add(ngx_pool_t *p, size_t size); 
 
 ngx_pool_t中的cleanup字段管理着一个特殊的链表，该链表的每一项都记录着一个特殊的需要释放的资源。对于这个链表中每个节点所包含的资源如何去释放，是自说明的。这也就提供了非常大的灵活性。意味着，ngx_pool_t不仅仅可以管理内存，通过这个机制，也可以管理任何需要释放的资源，例如，关闭文件，或者删除文件等等的。下面我们看一下这个链表每个节点的类型: 
 
-.. code-block:: none  
+.. code:: c  
 
     typedef struct ngx_pool_cleanup_s  ngx_pool_cleanup_t;
     typedef void (*ngx_pool_cleanup_pt)(void *data);
@@ -489,14 +489,14 @@ ngx_pool_t中的cleanup字段管理着一个特殊的链表，该链表的每一
 比如我们需要最后删除一个文件。那我们在调用这个函数的时候，把size指定为存储文件名的字符串的大小，然后调用这个函数给cleanup链表中增加一项。该函数会返回新添加的这个节点。我们然后把这个节点中的data字段拷贝为文件名。把hander字段赋值为一个删除文件的函数（当然该函数的原型要按照void (\*ngx_pool_cleanup_pt)(void \*data)）。
 
 
-.. code-block:: none 
+.. code:: c 
 
     void ngx_destroy_pool(ngx_pool_t *pool);
 
 该函数就是释放pool中持有的所有内存，以及依次调用cleanup字段所管理的链表中每个元素的handler字段所指向的函数，来释放掉所有该pool管理的资源。并且把pool指向的ngx_pool_t也释放掉了，完全不可用了。 
 
 
-.. code-block:: none 
+.. code:: c 
 
     void ngx_reset_pool(ngx_pool_t *pool);
 
@@ -508,7 +508,7 @@ ngx_array_t(100%)
 
 ngx_array_t是nginx内部使用的数组结构。nginx的数组结构在存储上与大家认知的C语言内置的数组有相似性，比如实际上存储数据的区域也是一大块连续的内存。但是数组除了存储数据的内存以外还包含一些元信息来描述相关的一些信息。下面我们从数组的定义上来详细的了解一下。ngx_array_t的定义位于src/core/ngx_array.c|h里面。 
 
-.. code-block:: none
+.. code:: c
 
     typedef struct ngx_array_s       ngx_array_t;
     struct ngx_array_s {
@@ -535,7 +535,7 @@ ngx_array_t是nginx内部使用的数组结构。nginx的数组结构在存储�
 
 下面介绍ngx_array_t相关操作函数。
 
-.. code-block:: none
+.. code:: c
 
     ngx_array_t *ngx_array_create(ngx_pool_t *p, ngx_uint_t n, size_t size);
 
@@ -546,28 +546,28 @@ ngx_array_t是nginx内部使用的数组结构。nginx的数组结构在存储�
 :size: 单个元素的大小，单位是字节。
 
 
-.. code-block:: none 
+.. code:: c 
 
     void ngx_array_destroy(ngx_array_t *a);
 
 销毁该数组对象，并释放其对应的内存给对应的内存池。需要注意的是，调用该函数以后，数组对象上个字段的值并没有被清零。所以即便这个时候对象a上各字段还有有意义的值，但是这个对象绝对不应该被再使用了，除非是使用ngx_array_init函数。 
 
 
-.. code-block:: none 
+.. code:: c 
 
     void *ngx_array_push(ngx_array_t *a);
 
 在数组a上新追加一个元素，并返回指向新元素的指针。需要把返回的指针使用类型转换，转换为具体的类型，然后再给新元素本身或者是各字段（如果数组的元素是复杂类型）赋值。 
 
 
-.. code-block:: none 
+.. code:: c 
 
     void *ngx_array_push_n(ngx_array_t *a, ngx_uint_t n);
 
 在数组a上追加n个元素，并返回指向这些追加元素的首个元素的位置的指针。 
 
 
-.. code-block:: none
+.. code:: c
 
     static ngx_inline ngx_int_t ngx_array_init(ngx_array_t *array, ngx_pool_t *pool, ngx_uint_t n, size_t size);
 
@@ -595,13 +595,13 @@ ngx_hash_t是nginx自己的hash表的实现。定义和实现位于src/core/ngx_
 ngx_hash_t的初始化。
 
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts);
 
 首先我们来看一下初始化函数。该函数的第一个参数hinit是初始化的一些参数的一个集合。 names是初始化一个ngx_hash_t所需要的所有key的一个数组。而nelts就是key的个数。下面先看一下ngx_hash_init_t类型，该类型提供了初始化一个hash表所需要的一些基本信息。 
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_hash_t       *hash;
@@ -633,7 +633,7 @@ ngx_hash_t的初始化。
 
 下面来看一下存储hash表key的数组的结构。
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_str_t         key;
@@ -646,7 +646,7 @@ key和value的含义显而易见，就不用解释了。key_hash是对key使用h
 
 
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_hash_find(ngx_hash_t *hash, ngx_uint_t key, u_char *name, size_t len);
 
@@ -666,7 +666,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
 
 下面详细说明这几个函数的用法。
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_hash_wildcard_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names,
         ngx_uint_t nelts);
@@ -686,7 +686,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
 
 
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_hash_find_wc_head(ngx_hash_wildcard_t *hwc, u_char *name, size_t len);
 
@@ -701,7 +701,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
 该函数返回匹配的通配符对应value。如果没有查到，返回NULL。
 
 
-.. code-block:: none
+.. code:: c
     
     void *ngx_hash_find_wc_tail(ngx_hash_wildcard_t *hwc, u_char *name, size_t len);
 
@@ -713,7 +713,7 @@ ngx_hash_combined_t(100%)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 组合类型hash表，该hash表的定义如下： 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_hash_t            hash;
@@ -730,7 +730,7 @@ nginx提供该类型的作用，在于提供一个方便的容器包含三个类
 
 对于该类型hash表的查询，nginx提供了一个方便的函数ngx_hash_find_combined。
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_hash_find_combined(ngx_hash_combined_t *hash, ngx_uint_t key,
     u_char *name, size_t len);
@@ -753,7 +753,7 @@ ngx_hash_keys_arrays_t(100%)
 该类型以及相关的操作函数也定义在src/core/ngx_hash.h|c里。我们先来看一下该类型的定义。
 
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_uint_t        hsize;
@@ -798,7 +798,7 @@ ngx_hash_keys_arrays_t(100%)
 
 构建出这三个hash表以后，可以组合在一个ngx_hash_combined_t对象中，使用ngx_hash_find_combined进行查找。或者是仍然保持三个独立的变量对应这三个hash表，自I机决定何时以及在哪个hash表中进行查询。
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_hash_keys_array_init(ngx_hash_keys_arrays_t *ha, ngx_uint_t type); 
 
@@ -808,7 +808,7 @@ ngx_hash_keys_arrays_t(100%)
 
 :type: 该字段有2个值可选择，即NGX_HASH_SMALL和NGX_HASH_LARGE。用来指明将要建立的hash表的类型，如果是NGX_HASH_SMALL，则有比较小的桶的个数和数组元素大小。NGX_HASH_LARGE则相反。
 
-.. code-block:: none
+.. code:: c
 
     ngx_int_t ngx_hash_add_key(ngx_hash_keys_arrays_t *ha, ngx_str_t *key,
     void *value, ngx_uint_t flags);
@@ -836,7 +836,7 @@ nginx的filter模块在处理从别的filter模块或者是handler模块传递�
 
 该结构被定义在src/core/ngx_buf.h|c。下面我们来看一下ngx_chain_t的定义。
 
-.. code-block:: none
+.. code:: c
 
     struct ngx_chain_s {
         ngx_buf_t    *buf;
@@ -846,13 +846,13 @@ nginx的filter模块在处理从别的filter模块或者是handler模块传递�
 
 就2个字段，next指向这个链表的下个节点。buf指向实际的数据。所以在这个链表上追加节点也是非常容易，只要把末尾元素的next指针指向新的节点，把新节点的next赋值为NULL即可。
 
-.. code-block:: none
+.. code:: c
 
     ngx_chain_t *ngx_alloc_chain_link(ngx_pool_t *pool);
 
 该函数创建一个ngx_chain_t的对象，并返回指向对象的指针，失败返回NULL。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_free_chain(pool, cl)                                             \
         cl->next = pool->chain;                                                  \
@@ -874,7 +874,7 @@ ngx_buf_t(99%)
 
 该数据结构位于src/core/ngx_buf.h|c文件中。我们来看一下它的定义。
 
-.. code-block:: none
+.. code:: c
 
     struct ngx_buf_s {
         u_char          *pos;
@@ -959,7 +959,7 @@ ngx_buf_t(99%)
 
 对于此对象的创建，可以直接在某个ngx_pool_t上分配，然后根据需要，给对应的字段赋值。也可以使用定义好的2个宏：
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_alloc_buf(pool)  ngx_palloc(pool, sizeof(ngx_buf_t))
     #define ngx_calloc_buf(pool) ngx_pcalloc(pool, sizeof(ngx_buf_t))
@@ -969,7 +969,7 @@ ngx_buf_t(99%)
 
 对于创建temporary字段为1的buf（就是其内容可以被后续的filter模块进行修改），可以直接使用函数ngx_create_temp_buf进行创建。
 
-.. code-block:: none
+.. code:: c
 
     ngx_buf_t *ngx_create_temp_buf(ngx_pool_t *pool, size_t size);
 
@@ -985,19 +985,19 @@ ngx_buf_t(99%)
 
 为了配合对ngx_buf_t的使用，nginx定义了以下的宏方便操作。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_buf_in_memory(b)        (b->temporary || b->memory || b->mmap)
 
 返回这个buf里面的内容是否在内存里。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_buf_in_memory_only(b)   (ngx_buf_in_memory(b) && !b->in_file)
 
 返回这个buf里面的内容是否仅仅在内存里，并且没有在文件里。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_buf_special(b)                                                   \
         ((b->flush || b->last_buf || b->sync)                                    \
@@ -1005,7 +1005,7 @@ ngx_buf_t(99%)
 
 返回该buf是否是一个特殊的buf，只含有特殊的标志和没有包含真正的数据。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_buf_sync_only(b)                                                 \
         (b->sync                                                                 \
@@ -1013,7 +1013,7 @@ ngx_buf_t(99%)
 
 返回该buf是否是一个只包含sync标志而不包含真正数据的特殊buf。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_buf_size(b)                                                      \
         (ngx_buf_in_memory(b) ? (off_t) (b->last - b->pos):                      \
@@ -1038,7 +1038,7 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
 好了，看到这里，大家应该基本上明白这个list结构了吧？还不明白也没有关系，下面我们来具体看一下它的定义，这些定义和相关的操作函数定义在src/core/ngx_list.h|c文件中。
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_list_part_t  *last;
@@ -1056,7 +1056,7 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
 好，我们在看一下每个节点的定义。
 
-.. code-block:: none
+.. code:: c
 
     typedef struct ngx_list_part_s  ngx_list_part_t;
     struct ngx_list_part_s {
@@ -1075,7 +1075,7 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
 我们来看一下提供的一个操作的函数。
 
-.. code-block:: none
+.. code:: c
 
     ngx_list_t *ngx_list_create(ngx_pool_t *pool, ngx_uint_t n, size_t size);
 
@@ -1089,13 +1089,13 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
 :返回值: 成功返回指向创建的ngx_list_t对象的指针，失败返回NULL。
 
-.. code-block:: none
+.. code:: c
 
     void *ngx_list_push(ngx_list_t *list);
 
 该函数在给定的list的尾部追加一个元素，并返回指向新元素存放空间的指针。如果追加失败，则返回NULL。
 
-.. code-block:: none
+.. code:: c
 
     static ngx_inline ngx_int_t
     ngx_list_init(ngx_list_t *list, ngx_pool_t *pool, ngx_uint_t n, size_t size);

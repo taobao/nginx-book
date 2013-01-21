@@ -10,7 +10,7 @@
 
 在代码中有类似的函数：
 
-.. code-block:: none
+.. code:: c
 
 		ngx_http_top_header_filter(r);
 		ngx_http_top_body_filter(r, in);
@@ -23,7 +23,7 @@
 
 过滤模块的调用是有顺序的，它的顺序在编译的时候就决定了。控制编译的脚本位于auto/modules中，当你编译完Nginx以后，可以在objs目录下面看到一个ngx_modules.c的文件。打开这个文件，有类似的代码：
 
-.. code-block:: none
+.. code:: c
 
 		ngx_module_t *ngx_modules[] = {
 			...
@@ -47,7 +47,7 @@
 
 Nginx执行的时候是怎么按照次序依次来执行各个过滤模块呢？它采用了一种很隐晦的方法，即通过局部的全局变量。比如，在每个filter模块，很可能看到如下代码：
 
-.. code-block:: none
+.. code:: c
 
 		static ngx_http_output_header_filter_pt  ngx_http_next_header_filter;
 		static ngx_http_output_body_filter_pt    ngx_http_next_body_filter;
@@ -75,7 +75,7 @@ ngx_http_top_header_filter是一个全局变量。当编译进一个filter模块
 
 Nginx可以方便的加入第三方的过滤模块。在过滤模块的目录里，首先需要加入config文件，文件的内容如下：
 
-.. code-block:: none
+.. code:: c
 
 		ngx_addon_name=ngx_http_example_filter_module
 		HTTP_AUX_FILTER_MODULES="$HTTP_AUX_FILTER_MODULES ngx_http_example_filter_module"
@@ -93,7 +93,7 @@ Nginx可以方便的加入第三方的过滤模块。在过滤模块的目录里
 +++++++++++++++++++++
 ngx_chain_t 结构非常简单，是一个单向链表：
 
-.. code-block:: none
+.. code:: c
         
         typedef struct ngx_chain_s ngx_chain_t;
          
@@ -106,7 +106,7 @@ ngx_chain_t 结构非常简单，是一个单向链表：
 
 单链表负载的就是ngx_buf_t，这个结构体使用非常广泛，先让我们看下该结构体的代码：
 
-.. code-block:: none 
+.. code:: c 
 
 		struct ngx_buf_s {
 			u_char          *pos;       /* 当前buffer真实内容的起始位置 */
@@ -169,7 +169,7 @@ ngx_chain_t 结构非常简单，是一个单向链表：
 
 响应头过滤函数的入口只有一个：
 
-.. code-block:: none
+.. code:: c
 
 		ngx_int_t
 		ngx_http_send_header(ngx_http_request_t *r)
@@ -209,7 +209,7 @@ ngx_http_write_filter_module           始终打开，将输出链拷贝到r->ou
 
 响应体过滤函数是过滤响应主体的函数。ngx_http_top_body_filter这个函数每个请求可能会被执行多次，它的入口函数是ngx_http_output_filter，比如：
 
-.. code-block:: none
+.. code:: c
 
         ngx_int_t
         ngx_http_output_filter(ngx_http_request_t *r, ngx_chain_t *in)
@@ -233,7 +233,7 @@ ngx_http_output_filter可以被一般的静态处理模块调用，也有可能�
 
 具体模块的响应体过滤函数的格式类似这样：
 
-.. code-block:: none
+.. code:: c
 
 		static int 
 		ngx_http_example_body_filter(ngx_http_request_t *r, ngx_chain_t *in)

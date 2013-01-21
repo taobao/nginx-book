@@ -14,7 +14,7 @@
 
 对应的变量结构体是这样子(每一个变量都是一个ngx_http_variable_s结构体)的：
 
-.. code-block:: none
+.. code:: c
 
                 struct ngx_http_variable_s {
                     ngx_str_t                     name;   /* must be first to build the hash */
@@ -29,7 +29,7 @@
 
 这里要注意flag属性,flag属性就是由下面的几个属性组合而成:
 
-.. code-block:: none
+.. code:: c
 
                 #define NGX_HTTP_VAR_CHANGEABLE   1
                 #define NGX_HTTP_VAR_NOCACHEABLE  2
@@ -55,13 +55,13 @@
 
 在Nginx中提供了下面的接口，可以供模块调用来创建变量。
 
-.. code-block:: none
+.. code:: c
 
                 ngx_http_variable_t *ngx_http_add_variable(ngx_conf_t *cf, ngx_str_t *name, ngx_uint_t flags);
 
 这个函数所做的工作就是将变量 "name"添加进全局的hash key表中,然后初始化一些域，不过这里要注意，对应的变量的get/set回调，需要当这个函数返回之后，显示的设置,比如在split_clients模块中的例子:
 
-.. code-block:: none
+.. code:: c
 
                 var = ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_CHANGEABLE);
                 if (var == NULL) {
@@ -73,7 +73,7 @@
 
 而对应的回调函数原型是这样的:
 
-.. code-block:: none
+.. code:: c
 
                 typedef void (*ngx_http_set_variable_pt) (ngx_http_request_t *r,
                     ngx_http_variable_value_t *v, uintptr_t data);
@@ -82,7 +82,7 @@
 
 回调函数比较简单，第一个参数是当前请求，第二个是需要设置或者获取的变量值，第三个是初始化时的回调指针，这里我们着重来看一下ngx_http_variable_value_t,下面就是这个结构体的原型:
 
-.. code-block:: none
+.. code:: c
 
                 typedef struct {
                     unsigned    len:28;
@@ -96,7 +96,7 @@
 
 这里主要是data域，当我们在get_handle中设置变量值的时候，只需要将对应的值放入到data中就可以了，这里data需要在get_handle中分配内存,比如下面的例子(ngx_http_fastcgi_script_name_variable),就是fastcgi_script_name变量的get_handler代码片段:
 
-.. code-block:: none
+.. code:: c
 
                 v->len = f->script_name.len + flcf->index.len;
 
@@ -116,7 +116,7 @@ Nginx的内部变量指的就是Nginx的官方模块中所导出的变量，在N
 
 假设我们需要在配置文件中使用http模块的host变量，那么只需要这样在变量名前加一个$符号就可以了($host).而如果需要在模块中使用host变量，那么就比较麻烦，Nginx提供了下面几个接口来取得变量:
 
-.. code-block:: none
+.. code:: c
 
                 ngx_http_variable_value_t *ngx_http_get_indexed_variable(ngx_http_request_t *r,
                     ngx_uint_t index);
@@ -130,7 +130,7 @@ NGX_HTTP_VAR_NOCACHEABLE这个标记，也就是说如果你想要cache你的变
 
 通过上面我们知道可以通过索引来得到变量值，可是这个索引改如何取得呢，Nginx也提供了对应的接口：
 
-.. code-block:: none
+.. code:: c
 
                 ngx_int_t ngx_http_get_variable_index(ngx_conf_t *cf, ngx_str_t *name);
 
@@ -139,7 +139,7 @@ NGX_HTTP_VAR_NOCACHEABLE这个标记，也就是说如果你想要cache你的变
 
 接下来来看对应的例子，比如在http_log模块中，如果在log_format中配置了对应的变量，那么它会调用ngx_http_get_variable_index来保存索引:
 
-.. code-block:: none
+.. code:: c
 
                 static ngx_int_t
                 ngx_http_log_variable_compile(ngx_conf_t *cf, ngx_http_log_op_t *op,
@@ -163,7 +163,7 @@ NGX_HTTP_VAR_NOCACHEABLE这个标记，也就是说如果你想要cache你的变
 
 然后http_log模块会使用ngx_http_get_indexed_variable来得到对应的变量值,这里要注意，就是使用这个接口的时候，判断返回值，不仅要判断是否为空，也需要判断value->not_found,这是因为只有第一次调用才会返回空，后续返回就不是空，因此需要判断value->not_found:
 
-.. code-block:: none
+.. code:: c
 
                 static u_char *
                 ngx_http_log_variable(ngx_http_request_t *r, u_char *buf, ngx_http_log_op_t *op)

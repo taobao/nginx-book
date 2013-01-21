@@ -28,7 +28,7 @@ handler模块简介
 
 对于模块配置信息的定义，命名习惯是ngx_http_<module name>_(main|srv|loc)_conf_t。这里有个例子，就是从我们后面将要展示给大家的hello module中截取的。
 
-.. code-block:: none 
+.. code:: c 
 
     typedef struct
     {
@@ -44,7 +44,7 @@ handler模块简介
 
 一个模块的配置指令是定义在一个静态数组中的。同样地，我们来看一下从hello module中截取的模块配置指令的定义。 
 
-.. code-block:: none
+.. code:: c
  
     static ngx_command_t ngx_http_hello_commands[] = {
        { 
@@ -71,7 +71,7 @@ handler模块简介
 
 ngx_command_t的定义，位于src/core/ngx_conf_file.h中。 
 
-.. code-block:: none
+.. code:: c
 
     struct ngx_command_s {
         ngx_str_t             name;
@@ -131,7 +131,7 @@ ngx_command_t的定义，位于src/core/ngx_conf_file.h中。
 
 :set: 这是一个函数指针，当nginx在解析配置的时候，如果遇到这个配置指令，将会把读取到的值传递给这个函数进行分解处理。因为具体每个配置指令的值如何处理，只有定义这个配置指令的人是最清楚的。来看一些这个函数指针要求的函数原型。
 
-.. code-block:: none
+.. code:: c
 
     char *(*set)(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 
@@ -183,7 +183,7 @@ ngx_command_t的定义，位于src/core/ngx_conf_file.h中。
 
 这是一个ngx_http_module_t类型的静态变量。这个变量实际上是提供一组回调函数指针，这些函数有在创建存储配置信息的对象的函数，也有在创建前和创建后会调用的函数。这些函数都将被nginx在合适的时间进行调用。
 
-.. code-block:: none
+.. code:: c
 
     typedef struct {
         ngx_int_t   (*preconfiguration)(ngx_conf_t *cf);
@@ -221,7 +221,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 这些配置信息一般默认都应该设为一个未初始化的值，针对这个需求，Nginx定义了一系列的宏定义来代表个中配置所对应数据类型的未初始化值，如下：
 
-.. code-block:: none
+.. code:: c
 
     #define NGX_CONF_UNSET       -1
     #define NGX_CONF_UNSET_UINT  (ngx_uint_t) -1
@@ -231,7 +231,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 又因为对于配置项的合并，逻辑都类似，也就是前面已经说过的，如果在本层次已经配置了，也就是配置项的值已经被读取进来了（那么这些配置项的值就不会等于上面已经定义的那些UNSET的值），就使用本层次的值作为定义合并的结果，否则，使用上层的值，如果上层的值也是这些UNSET类的值，那就复制为默认值，否则就是用上层的值作为合并的结果。对于这样类似的操作，Nginx定义了一些宏操作来做这些事情，我们来看其中一个的定义。
 
-.. code-block:: none
+.. code:: c
 
     #define ngx_conf_merge_uint_value(conf, prev, default)                       \
         if (conf == NGX_CONF_UNSET_UINT) {                                       \
@@ -241,7 +241,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 显而易见，这个逻辑确实比较简单，所以其它的宏定义也类似，我们就列具其中的一部分吧。
 
-.. code-block:: none
+.. code:: c
 
     ngx_conf_merge_value
     ngx_conf_merge_ptr_value
@@ -257,7 +257,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 下面来看一下hello模块的模块上下文的定义，加深一下印象。 
 
-.. code-block:: none
+.. code:: c
 
     static ngx_http_module_t ngx_http_hello_module_ctx = {
         NULL,                          /* preconfiguration */
@@ -286,7 +286,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 我们来看一下hello模块的模块定义。
 
-.. code-block:: none
+.. code:: c
 
     ngx_module_t ngx_http_hello_module = {
         NGX_MODULE_V1,
@@ -360,7 +360,7 @@ handler模块的挂载
 
 挂载的代码如下（摘自hello module）:
 
-.. code-block:: none
+.. code:: c
 
 	static ngx_int_t
 	ngx_http_hello_init(ngx_conf_t *cf)
@@ -399,7 +399,7 @@ handler模块的挂载
 
 好了，下面看一下这种挂载方式的具体代码（摘自Emiller's Guide To Nginx Module Development）。
 
-.. code-block:: none
+.. code:: c
 
 	static char *
 	ngx_http_circle_gif(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
@@ -441,7 +441,7 @@ hello handler 模块
     
 下面来完整的给出ngx_http_hello_module模块的完整代码。
 
-.. code-block:: none
+.. code:: c
 
 	#include <ngx_config.h>
 	#include <ngx_core.h>
@@ -707,7 +707,7 @@ config文件的编写
 
 对于开发一个模块，我们是需要把这个模块的C代码组织到一个目录里，同时需要编写一个config文件。这个config文件的内容就是告诉nginx的编译脚本，该如何进行编译。我们来看一下hello handler module的config文件的内容，然后再做解释。
 
-.. code-block:: none
+.. code:: c
 
 	ngx_addon_name=ngx_http_hello_module
 	HTTP_MODULES="$HTTP_MODULES ngx_http_hello_module"
@@ -731,7 +731,7 @@ config文件的编写
 
 使用一个模块需要根据这个模块定义的配置指令来做。比如我们这个简单的hello handler module的使用就很简单。在我的测试服务器的配置文件里，就是在http里面的默认的server里面加入如下的配置：
 
-.. code-block:: none
+.. code:: c
 
 	location /test {
 			hello_string jizhao;
@@ -754,7 +754,7 @@ http access module
 该模块的代码位于src/http/modules/ngx_http_access_module.c中。该模块的作用是提供对于特定host的客户端的访问控制。可以限定特定host的客户端对于服务端全部，或者某个server，或者是某个location的访问。
 该模块的实现非常简单，总共也就只有几个函数。
 
-.. code-block:: none
+.. code:: c
 
 	static ngx_int_t ngx_http_access_handler(ngx_http_request_t *r);
 	static ngx_int_t ngx_http_access_inet(ngx_http_request_t *r,
@@ -787,7 +787,7 @@ http static module的代码位于src\http\modules\ngx_http_static_module.c中，
 
 我们首先来看一下该模块的模块上下文的定义。
 
-.. code-block:: none
+.. code:: c
 
 	ngx_http_module_t  ngx_http_static_module_ctx = {
 		NULL,                                  /* preconfiguration */
@@ -805,7 +805,7 @@ http static module的代码位于src\http\modules\ngx_http_static_module.c中，
 
 是非常的简洁吧，连任何与配置相关的函数都没有。对了，因为该模块没有提供任何配置指令。大家想想也就知道了，这个模块做的事情实在是太简单了，也确实没什么好配置的。唯一需要调用的函数是一个ngx_http_static_init函数。好了，来看一下这个函数都干了写什么。
 
-.. code-block:: none
+.. code:: c
 
 	static ngx_int_t
 	ngx_http_static_init(ngx_conf_t *cf)
@@ -829,7 +829,7 @@ http static module的代码位于src\http\modules\ngx_http_static_module.c中，
 
 下面我们就看一下这个模块最核心的处理逻辑所在的ngx_http_static_handler函数。该函数大概占了这个模块代码量的百分之八九十。
 
-.. code-block:: none
+.. code:: c
 
 	static ngx_int_t
 	ngx_http_static_handler(ngx_http_request_t *r)
@@ -1076,7 +1076,7 @@ http log module
 
 还有一点要说明的是，由于nginx是允许在某个阶段有多个handler模块存在的，根据其处理结果，确定是否要调用下一个handler。但是对于挂载在NGX_HTTP_LOG_PHASE阶段的handler，则根本不关注这里handler的具体处理函数的返回值，所有的都被调用。如下，位于src/http/ngx_http_request.c中的ngx_http_log_request函数。
 
-.. code-block:: none
+.. code:: c
 
 	static void
 	ngx_http_log_request(ngx_http_request_t *r)

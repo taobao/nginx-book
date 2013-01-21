@@ -4,8 +4,8 @@
 .. toctree::
    :maxdepth: 4
 
-   chapter_8.rst
-   chapter_9.rst
+   chapter_08.rst
+   chapter_09.rst
    chapter_10.rst
    chapter_11.rst
    chapter_12.rst

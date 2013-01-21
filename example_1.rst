@@ -59,14 +59,14 @@ Handler模块？
 
 初看memcached模块，大家可能觉得并无特别之处。如果稍微细看，甚至觉得有点像handler模块，当大家看到这段代码以后，必定疑惑为什么会跟handler模块一模一样。
 
-.. code-block:: none
+.. code:: c
 
         clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
         clcf->handler = ngx_http_memcached_handler;
 
 因为upstream模块使用的就是handler模块的接入方式。同时，upstream模块的指令系统的设计也是遵循handler模块的基本规则：配置该模块才会执行该模块。
 
-.. code-block:: none
+.. code:: c
 
         { ngx_string("memcached_pass"),
           NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF|NGX_CONF_TAKE1,
@@ -84,7 +84,7 @@ Upstream模块！
 
 1\. 创建upstream数据结构。
 
-.. code-block:: none
+.. code:: c
 
         if (ngx_http_upstream_create(r) != NGX_OK) {
             return NGX_HTTP_INTERNAL_SERVER_ERROR;
@@ -92,7 +92,7 @@ Upstream模块！
 
 2\. 设置模块的tag和schema。schema现在只会用于日志，tag会用于buf_chain管理。
 
-.. code-block:: none
+.. code:: c
 
         u = r->upstream;
 
@@ -101,14 +101,14 @@ Upstream模块！
 
 3\. 设置upstream的后端服务器列表数据结构。
 
-.. code-block:: none
+.. code:: c
 
         mlcf = ngx_http_get_module_loc_conf(r, ngx_http_memcached_module);
         u->conf = &mlcf->upstream;
 
 4\. 设置upstream回调函数。在这里列出的代码稍稍调整了代码顺序。
 
-.. code-block:: none
+.. code:: c
 
         u->create_request = ngx_http_memcached_create_request;
         u->reinit_request = ngx_http_memcached_reinit_request;
@@ -120,7 +120,7 @@ Upstream模块！
 
 5\. 创建并设置upstream环境数据结构。
 
-.. code-block:: none 
+.. code:: c 
 
         ctx = ngx_palloc(r->pool, sizeof(ngx_http_memcached_ctx_t));
         if (ctx == NULL) {
@@ -136,7 +136,7 @@ Upstream模块！
 
 6\. 完成upstream初始化并进行收尾工作。
 
-.. code-block:: none
+.. code:: c
 
         r->main->count++;
         ngx_http_upstream_init(r);
@@ -164,7 +164,7 @@ Upstream模块！
 
 5\. ngx_http_memcached_process_header：模块的业务重点函数。memcache协议将头部信息被定义为第一行文本，可以找到这段代码证明：
 
-.. code-block:: none
+.. code:: c
 
         for (p = u->buffer.pos; p < u->buffer.last; p++) {
             if ( * p == LF) {
@@ -177,7 +177,7 @@ nginx处理后端服务器的响应头时只会使用一块缓存，所有数据
 
 process_header的重要职责是将后端服务器返回的状态翻译成返回给客户端的状态。例如，在ngx_http_memcached_process_header中，有这样几段代码：
 
-.. code-block:: none
+.. code:: c
 
         r->headers_out.content_length_n = ngx_atoof(len, p - len - 1);
 
@@ -191,7 +191,7 @@ u->state用于计算upstream相关的变量。比如u->status->status将被用�
 
 在这个函数中不能忘记的一件事情是处理完头部信息以后需要将读指针pos后移，否则这段数据也将被复制到返回给客户端的响应的正文中，进而导致正文内容不正确。
 
-.. code-block:: none
+.. code:: c
 
         u->buffer.pos = p + 1;
 
