@@ -11,7 +11,7 @@ nginx在启动后，在unix系统中会以daemon的方式在后台运行，后�
 
 刚才讲到，nginx在启动后，会有一个master进程和多个worker进程。master进程主要用来管理worker进程，包含：接收来自外界的信号，向各worker进程发送信号，监控worker进程的运行状态，当worker进程退出后(异常情况下)，会自动重新启动新的worker进程。而基本的网络事件，则是放在worker进程中来处理了。多个worker进程之间是对等的，他们同等竞争来自客户端的请求，各进程互相之间是独立的。一个请求，只可能在一个worker进程中处理，一个worker进程，不可能处理其它进程的请求。worker进程的个数是可以设置的，一般我们会设置与机器cpu核数一致，这里面的原因与nginx的进程模型以及事件处理模型是分不开的。nginx的进程模型，可以由下图来表示：
 
-.. image:: /images/chapter-2-1.PNG?raw=true
+.. image:: http://tengine.taobao.org/book/_images/chapter-2-1.PNG?raw=true
     :alt: nginx进程模型
     :align: center
 
