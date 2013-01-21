@@ -41,7 +41,7 @@ nginx由于出色的性能，在世界范围内受到了越来越多人的关注
        2012/11/24|更新第2章(ngx_buf_t的部分字段以及其他一些书写错误和表达)
        2012/12/18|更新第11章(解析http块)
 	   2012/12/10|增加第3章的内容
-       2012/12/28|补充和完善了第3章的内容
+       2012/12/28|补充和完善了第3章的内容 
 
 版权申明
 ++++++++++++
@@ -61,7 +61,14 @@ nginx由于出色的性能，在世界范围内受到了越来越多人的关注
 目录
 ++++++
 
-书籍浏览 (http://tengine.taobao.org/book/index.html)
+.. toctree::
+   :maxdepth: 4
+
+   module_development.rst
+   source_analysis.rst
+   appendix_a.rst
+   appendix_b.rst
+   appendix_c.rst
 
 团队成员
 ++++++++++++

@@ -1096,6 +1096,7 @@ subrequest原理解析 (99%)
     location /world.htm {
         #content of world.htm: world
     }
+
 访问/main.htm，将得到如下响应：
 
 .. code:: c

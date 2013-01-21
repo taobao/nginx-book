@@ -1,0 +1,20 @@
+div.comment {
+    position:absolute;
+    left: -9999px;
+    top: -9999px;
+}
+div.comment a.email_link {
+    display: block;
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    color: white;
+    text-decoration:none;
+    background: transparent url(./comment_white_yellow.gif) no-repeat -16px 0;
+}
+
+div.comment a.email_link:hover{
+    background-position:0 0;
+}
+
+
