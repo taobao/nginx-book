@@ -66,7 +66,7 @@ ngx_http_top_header_filter是一个全局变量。当编译进一个filter模块
 
 响应头和响应体过滤函数的执行顺序如下所示：
 
-.. image:: /images/chapter-4-1.png
+.. image:: http://tengine.taobao.org/book/_images/chapter-4-1.png
 
 这图只表示了head_filter和body_filter之间的执行顺序，在header_filter和body_filter处理函数之间，在body_filter处理函数之间，可能还有其他执行代码。
 
@@ -159,7 +159,7 @@ ngx_chain_t 结构非常简单，是一个单向链表：
 
 一般buffer结构体可以表示一块内存，内存的起始和结束地址分别用start和end表示，pos和last表示实际的内容。如果内容已经处理过了，pos的位置就可以往后移动。如果读取到新的内容，last的位置就会往后移动。所以buffer可以在多次调用过程中使用。如果last等于end，就说明这块内存已经用完了。如果pos等于last，说明内存已经处理完了。下面是一个简单的示意图，说明buffer中指针的用法：
 
-.. image:: /images/chapter-4-2.png
+.. image:: http://tengine.taobao.org/book/_images/chapter-4-2.png
 
 
 响应头过滤函数 (90%)

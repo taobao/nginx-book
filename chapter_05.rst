@@ -320,7 +320,7 @@ process_header函数完成响应头的正确处理，应该返回NGX_OK。如果
 
 nginx初始化upstream时，会在ngx_http_upstream_init_main_conf函数中调用设置的回调函数初始化负载均衡模块。这里不太好理解的是uscf的具体位置。通过下面的示意图，说明upstream负载均衡模块的配置的内存布局。
 
-.. image:: /images/chapter-5-1.PNG
+.. image:: http://tengine.taobao.org/book/_images/chapter-5-1.PNG
 
 从图上可以看出，MAIN_CONF中ngx_upstream_module模块的配置项中有一个指针数组upstreams，数组中的每个元素对应就是配置文件中每一个upstream{}的信息。更具体的将会在后面的原理篇讨论。
 
@@ -384,7 +384,7 @@ peer.get和peer.free回调函数
 :Q: 对于一个请求，peer.get函数可能被调用多次么？
 :A: 正式如此。当某次peer.get函数得到的连接地址连接不上，或者请求对应的服务器得到异常响应，nginx会执行ngx_http_upstream_next，然后可能再次调用peer.get函数尝试别的连接。upstream整体流程如下：
 
-.. image:: /images/chapter-5-2.PNG
+.. image:: http://tengine.taobao.org/book/_images/chapter-5-2.PNG
 
 本节回顾
 +++++++++++++++++++++

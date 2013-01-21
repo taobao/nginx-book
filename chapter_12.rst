@@ -1270,7 +1270,7 @@ ngx_http_run_posted_requests函数的调用点后面会做说明。
 
 下面用一个图来做说明，下图是某时刻某个主请求和它的所有子孙请求的树结构：
 
-.. image:: /images/chapter-12-1.png
+.. image:: http://tengine.taobao.org/book/_images/chapter-12-1.png
     :height:  273 px
     :width:   771 px
     :scale:   80 %
