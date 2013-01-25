@@ -573,7 +573,8 @@ ngx_array_t是nginx内部使用的数组结构。nginx的数组结构在存储�
 
 如果一个数组对象是被分配在堆上的，那么当调用ngx_array_destroy销毁以后，如果想再次使用，就可以调用此函数。
 
-如果一个数组对象是被分配在栈上的，那么就需要调用此函数，进行初始化的工作以后，才可以使用。 
+如果一个数组对象是被分配在栈上的，那么就需要调用此函数，进行初始化的工作以后，才可以使用。
+ 
 
 **注意事项\:** 
 数组在扩容时，旧的内存不会被释放，会造成内存的浪费。因此，最好能提前规划好数组的容量，在创建或者初始化的时候一次搞定，避免多次扩容，造成内存浪费。
@@ -597,7 +598,8 @@ ngx_hash_t的初始化。
 
 .. code:: c
 
-    ngx_int_t ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names, ngx_uint_t nelts);
+    ngx_int_t ngx_hash_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names,
+ ngx_uint_t nelts);
 
 首先我们来看一下初始化函数。该函数的第一个参数hinit是初始化的一些参数的一个集合。 names是初始化一个ngx_hash_t所需要的所有key的一个数组。而nelts就是key的个数。下面先看一下ngx_hash_init_t类型，该类型提供了初始化一个hash表所需要的一些基本信息。 
 
@@ -616,7 +618,7 @@ ngx_hash_t的初始化。
     } ngx_hash_init_t;
 
 
-:hash: 该字段如果为NULL，那么调用完初始化韩式有，该字段指向新创建出来的hash表。如果该字段不为NULL，那么在初始的时候，所有的数据被插入了这个字段所指的hash表中。
+:hash: 该字段如果为NULL，那么调用完初始化函数后，该字段指向新创建出来的hash表。如果该字段不为NULL，那么在初始的时候，所有的数据被插入了这个字段所指的hash表中。
 
 :key: 指向从字符串生成hash值的hash函数。nginx的源代码中提供了默认的实现函数ngx_hash_key_lc。
 
@@ -626,7 +628,8 @@ ngx_hash_t的初始化。
 
 :name: 该hash表的名字。
 
-:pool: 该hash表分配内存使用的pool。 
+:pool: 该hash表分配内存使用的pool。
+ 
 
 :temp_pool: 该hash表使用的零时pool，在初始化完成以后，该pool可以被释放和销毁掉。
 
@@ -642,7 +645,8 @@ ngx_hash_t的初始化。
     } ngx_hash_key_t;
 
 
-key和value的含义显而易见，就不用解释了。key_hash是对key使用hash函数计算出来的值。对这两个结构分析完成以后，我想大家应该都已经明白这个函数应该是如何使用了吧。该函数成功初始化一个hash表以后，返回NGX_OK，否则返回NGX_ERROR。
+key和value的含义显而易见，就不用解释了。key_hash是对key使用hash函数计算出来的值。
+对这两个结构分析完成以后，我想大家应该都已经明白这个函数应该是如何使用了吧。该函数成功初始化一个hash表以后，返回NGX_OK，否则返回NGX_ERROR。
 
 
 
@@ -711,7 +715,8 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
 ngx_hash_combined_t(100%)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-组合类型hash表，该hash表的定义如下： 
+组合类型hash表，该hash表的定义如下：
+ 
 .. code:: c
 
     typedef struct {
@@ -799,7 +804,8 @@ ngx_hash_keys_arrays_t(100%)
 
 .. code:: c
 
-    ngx_int_t ngx_hash_keys_array_init(ngx_hash_keys_arrays_t *ha, ngx_uint_t type); 
+    ngx_int_t ngx_hash_keys_array_init(ngx_hash_keys_arrays_t *ha, ngx_uint_t type);
+ 
 
 初始化这个结构，主要是对这个结构中的ngx_array_t类型的字段进行初始化，成功返回NGX_OK。
 
@@ -949,10 +955,12 @@ ngx_buf_t(99%)
 
 :last_in_chain: 在当前的chain里面，此buf是最后一个。特别要注意的是last_in_chain的buf不一定是last_buf，但是last_buf的buf一定是last_in_chain的。这是因为数据会被以多个chain传递给某个filter模块。
 
-:last_shadow: 在创建一个buf的shadow的时候，通常将新创建的一个buf的last_shadow置为1。 
+:last_shadow:
+ 在创建一个buf的shadow的时候，通常将新创建的一个buf的last_shadow置为1。 
 
 
-:temp_file: 由于受到内存使用的限制，有时候一些buf的内容需要被写到磁盘上的临时文件中去，那么这时，就设置此标志
+:temp_file:
+ 由于受到内存使用的限制，有时候一些buf的内容需要被写到磁盘上的临时文件中去，那么这时，就设置此标志
  。
 
 
