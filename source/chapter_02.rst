@@ -631,7 +631,7 @@ ngx_hash_t的初始化。
 :pool: 该hash表分配内存使用的pool。
  
 
-:temp_pool: 该hash表使用的零时pool，在初始化完成以后，该pool可以被释放和销毁掉。
+:temp_pool: 该hash表使用的临时pool，在初始化完成以后，该pool可以被释放和销毁掉。
 
 
 下面来看一下存储hash表key的数组的结构。
