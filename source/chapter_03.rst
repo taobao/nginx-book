@@ -28,7 +28,8 @@ handler模块简介
 
 对于模块配置信息的定义，命名习惯是ngx_http_<module name>_(main|srv|loc)_conf_t。这里有个例子，就是从我们后面将要展示给大家的hello module中截取的。
 
-.. code:: c 
+.. code:: c
+ 
 
     typedef struct
     {
@@ -252,7 +253,8 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 等等。
 
- 
+
+ 
 
 
 下面来看一下hello模块的模块上下文的定义，加深一下印象。 
@@ -304,7 +306,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
     };
 
 
-模块可以提供一些回调函数给nginx，当nginx在创建进程线程或者结束进程线程时进行调用。但大多数模块在这些时刻并不需奥做写什么事情，所以都简单赋值为NULL。
+模块可以提供一些回调函数给nginx，当nginx在创建进程线程或者结束进程线程时进行调用。但大多数模块在这些时刻并不需要做什么，所以都简单赋值为NULL。
 
 
 
@@ -783,7 +785,7 @@ http static module
 
 从某种程度上来说，此模块可以算的上是“最正宗的”，“最古老”的content handler。因为本模块的作用就是读取磁盘上的静态文件，并把文件内容作为产生的输出。在Web技术发展的早期，只有静态页面，没有服务端脚本来动态生成HTML的时候。恐怕开发个Web服务器的时候，第一个要开发就是这样一个content handler。
 
-http static module的代码位于src\http\modules\ngx_http_static_module.c中，总共只有两百多行近三百行。可以说是非常短小。
+http static module的代码位于src/http/modules/ngx_http_static_module.c中，总共只有两百多行近三百行。可以说是非常短小。
 
 我们首先来看一下该模块的模块上下文的定义。
 
