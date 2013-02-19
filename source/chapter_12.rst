@@ -153,7 +153,7 @@ nginx在初始化阶段，具体是在init process阶段的ngx_event_process_ini
         return NGX_OK;
     }
 
-当一个工作进程在某个时刻将监听事件挂载上事件处理模型之后，nginx就可以正式的接收并处理客户端过来的请求了。这时如果有一个用户在浏览器的地址栏内输入一个域名，并且域名解析服务器将该域名解析到一台由nginx监听的服务器上，nginx的事件处理模型接收到这个读事件之后，会速度交由之前注册好的事件处理函数ngx_event_accept来处理。
+当一个工作进程在某个时刻将监听事件挂载上事件处理模型之后，nginx就可以正式的接收并处理客户端过来的请求了。这时如果有一个用户在浏览器的地址栏内输入一个域名，并且域名解析服务器将该域名解析到一台由nginx监听的服务器上，nginx的事件处理模型接收到这个读事件之后，会交给之前注册好的事件处理函数ngx_event_accept来处理。
 
 在ngx_event_accept函数中，nginx调用accept函数，从已连接队列得到一个连接以及对应的套接字，接着分配一个连接结构（ngx_connection_t），并将新得到的套接字保存在该连接结构中，这里还会做一些基本的连接初始化工作：
 
@@ -197,7 +197,7 @@ nginx配置文件中可以设置多个监听在不同端口和地址的虚拟服
 
 7, 将该请求的count字段设置为1，count字段表示请求的引用计数；
 
-8, 将当前时间保存在start_sec和start_msec字段，这个时间是该请求的起始时刻，将被用来计算一个请求的处理时间（request time），nginx使用的这个起始点和apache略有差别，nginx中请求的起始点是接收到客户端的第一个数据包开始，而apache则是接收到客户端的整个request line后开始算起；
+8, 将当前时间保存在start_sec和start_msec字段，这个时间是该请求的起始时刻，将被用来计算一个请求的处理时间（request time），nginx使用的这个起始点和apache略有差别，nginx中请求的起始点是接收到客户端的第一个数据包的事件开始，而apache则是接收到客户端的整个request line后开始算起；
 
 9, 初始化请求的其他字段，比如将uri_changes设置为11，表示最多可以将该请求的uri改写10次，subrequests被设置为201，表示一个请求最多可以发起200个子请求；
 
@@ -747,7 +747,7 @@ ngx_http_headers_in数组中剩下的请求头都有自己特殊的处理函数�
         return NGX_OK;
     }
 
-当ngx_http_alloc_large_header_buffer函数返回NGX_DECLINED时，表示客户端发送了一行过大的请求头，或者是整个请求头部超过了限制，nginx会返回494错误，注意到nginx在返回494错误之前将请求的lingering_close标识置为了1，这样做的目的是在返回响应之丢弃掉客户端发过来的其他数据；
+当ngx_http_alloc_large_header_buffer函数返回NGX_DECLINED时，表示客户端发送了一行过大的请求头，或者是整个请求头部超过了限制，nginx会返回494错误，注意到nginx在返回494错误之前将请求的lingering_close标识置为了1，这样做的目的是在返回响应之前丢弃掉客户端发过来的其他数据；
 
 3，返回NGX_HTTP_PARSE_INVALID_HEADER，表示请求头解析过程中遇到错误，一般为客户端发送了不符合协议规范的头部，此时nginx返回400错误；
 
