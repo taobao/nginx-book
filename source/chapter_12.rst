@@ -197,7 +197,7 @@ nginx配置文件中可以设置多个监听在不同端口和地址的虚拟服
 
 7, 将该请求的count字段设置为1，count字段表示请求的引用计数；
 
-8, 将当前时间保存在start_sec和start_msec字段，这个时间是该请求的起始时刻，将被用来计算一个请求的处理时间（request time），nginx使用的这个起始点和apache略有差别，nginx中请求的起始点是接收到客户端的第一个数据包开始，而apache则是接收到客户端的整个request line后开始算起；
+8, 将当前时间保存在start_sec和start_msec字段，这个时间是该请求的起始时刻，将被用来计算一个请求的处理时间（request time），nginx使用的这个起始点和apache略有差别，nginx中请求的起始点是接收到客户端的第一个数据包的事件开始，而apache则是接收到客户端的整个request line后开始算起；
 
 9, 初始化请求的其他字段，比如将uri_changes设置为11，表示最多可以将该请求的uri改写10次，subrequests被设置为201，表示一个请求最多可以发起200个子请求；
 
