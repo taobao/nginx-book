@@ -775,7 +775,7 @@ http access module
 
 对于与配置相关的几个函数都不需要做解释了，需要提一下的是函数ngx_http_access_init，该函数在实现上把本模块挂载到了NGX_HTTP_ACCESS_PHASE阶段的handler上，从而使自己的被调用时机发生在了NGX_HTTP_CONTENT_PHASE等阶段前。因为进行客户端地址的限制检查，根本不需要等到这么后面。
 
-另外看一下这个模块的主处理函数ngx_http_access_handler。这个函数的逻辑也非常简单，主要是根据客户端地址的类型，来分别选则ipv4类型的处理函数ngx_http_access_inet还是ipv6类型的处理函数ngx_http_access_inet6。
+另外看一下这个模块的主处理函数ngx_http_access_handler。这个函数的逻辑也非常简单，主要是根据客户端地址的类型，来分别选择ipv4类型的处理函数ngx_http_access_inet还是ipv6类型的处理函数ngx_http_access_inet6。
 
 而这个两个处理函数内部也非常简单，就是循环检查每个规则，检查是否有匹配的规则，如果有就返回匹配的结果，如果都没有匹配，就默认拒绝。  
 
@@ -1060,7 +1060,7 @@ http static module的代码位于src/http/modules/ngx_http_static_module.c中，
 
 然后接下来调用了一个ngx_http_map_uri_to_path函数，该函数的作用是把请求的http协议的路径转化成一个文件系统的路径。
 
-然后根据转化出来的具体路径，去打开文件，打开文件的时候做了2中检查，一种是，如果请求的文件是个symbol link，根据配置，是否允许符号链接，不允许返回错误。还有一个检查是，如果请求的是一个名称，是一个目录的名字，也返回错误。如果都没有错误，就读取文件，返回内容。其实说返回内容可能不是特别准确，比较准确的说法是，把产生的内容传递给后续的filter去处理。
+然后根据转化出来的具体路径，去打开文件，打开文件的时候做了2种检查，一种是，如果请求的文件是个symbol link，根据配置，是否允许符号链接，不允许返回错误。还有一个检查是，如果请求的是一个名称，是一个目录的名字，也返回错误。如果都没有错误，就读取文件，返回内容。其实说返回内容可能不是特别准确，比较准确的说法是，把产生的内容传递给后续的filter去处理。
 
 
 http log module
@@ -1070,9 +1070,9 @@ http log module
 
 这个模块的代码位于src/http/modules/ngx_http_log_module.c，虽然这个模块的代码有接近1400行，但是主要的逻辑在于对日志本身格式啊，等细节的处理。我们在这里进行分析主要是关注，如何编写一个log handler的问题。
 
-由于log handler的时候，拿到的参数也是requset这个东西，那么也就意味着我们如果需要，可以好好研究下这个结构，把我们需要的所有信息都记录下来。
+由于log handler的时候，拿到的参数也是request这个东西，那么也就意味着我们如果需要，可以好好研究下这个结构，把我们需要的所有信息都记录下来。
 
-对于log handler，有一点特别需要注意的就是，log handler是无论如何都会被调用的，就是只要服务端接受到了一个客户端的请求，也就是产生了一个requset对象，那么这些个log handler的处理函数都会被调用的，就是在释放requset的时候被调用的（ngx_http_free_request函数）。
+对于log handler，有一点特别需要注意的就是，log handler是无论如何都会被调用的，就是只要服务端接受到了一个客户端的请求，也就是产生了一个request对象，那么这些个log handler的处理函数都会被调用的，就是在释放request的时候被调用的（ngx_http_free_request函数）。
 
 那么当然绝对不能忘记的就是log handler最好，也是建议被挂载在NGX_HTTP_LOG_PHASE阶段。因为挂载在其他阶段，有可能在某些情况下被跳过，而没有执行到，导致你的log模块记录的信息不全。
 
