@@ -125,7 +125,7 @@ http请求是典型的请求-响应类型的的网络协议，而http是文件�
 
 在解析完请求行后，nginx会设置读事件的handler为ngx_http_process_request_headers，然后后续的请求就在ngx_http_process_request_headers中进行读取与解析。ngx_http_process_request_headers函数用来读取请求头，跟请求行一样，还是调用ngx_http_read_request_header来读取请求头，调用ngx_http_parse_header_line来解析一行请求头，解析到的请求头会保存到ngx_http_request_t的域headers_in中，headers_in是一个链表结构，保存所有的请求头。而HTTP中有些请求是需要特别处理的，这些请求头与请求处理函数存放在一个映射表里面，即ngx_http_headers_in，在初始化时，会生成一个hash表，当每解析到一个请求头后，就会先在这个hash表中查找，如果有找到，则调用相应的处理函数来处理这个请求头。比如:Host头的处理函数是ngx_http_process_host。
 
-当nginx解析到两个回车换行符时，就表示请求头的结束，此时就会调用ngx_http_process_request来处理请求了。ngx_http_process_request会设置当前的连接的读写事件处理函数为ngx_http_request_handler，然后再调用ngx_http_handler来真正开始处理一个完整的http请求。这里可能比较奇怪，读写事件处理函数都是ngx_http_request_handler，其实在这个函数中，会根据当前事件是读事件还是写事件，分别调用ngx_http_request_t中的read_event_handler或者是write_event_handler。由于此时，我们的请求头已经读取完成了，之前有说过，nginx的做法是先不读取请求body，所以这里面我们设置read_event_handler为ngx_http_block_reading，即不读取数据了。刚才说到，真正开始处理数据，是在ngx_http_handler这个函数里面，这个函数会设置write_event_handler为ngx_http_core_run_phases，并执行ngx_http_core_run_phases函数。ngx_http_core_run_phases这个函数将执行多阶段请求处理，nginx将一个http请求的处理分为多个阶段，那么这个函数就是执行这些阶段来产生数据。因为ngx_http_core_run_phases最后会产生数据，所以我们就很容易理解，为什么设置写事件的处理函数为ngx_http_core_run_phases了。在这里，我简要说明了一下函数的调用逻辑，我们需要明白最终是调用ngx_http_core_run_phases来处理请求，产生的响应头会放在ngx_http_request_t的headers_out中，这一部分内容，我会放在请求处理流程里面去讲。nginx的各种阶段会对请求进行处理，最后会调用filter来过滤数据，对数据进行加工，如truncked传输、gzip压缩等。这里的filter包括header filter与body filter，即对响应头或响应体进行处理。filter是一个链表结构，分别有header filter与body filter，先执行header filter中的所有filter，然后再执行body filter中的所有filter。在header filter中的最后一个filter，即ngx_http_header_filter，这个filter将会遍历所的有响应头，最后需要输出的响应头在一个连续的内存，然后调用ngx_http_write_filter进行输出。ngx_http_write_filter是body filter中的最后一个，所以nginx首先的body信息，在经过一系列的body filter之后，最后也会调用ngx_http_write_filter来进行输出(有图来说明)。
+当nginx解析到两个回车换行符时，就表示请求头的结束，此时就会调用ngx_http_process_request来处理请求了。ngx_http_process_request会设置当前的连接的读写事件处理函数为ngx_http_request_handler，然后再调用ngx_http_handler来真正开始处理一个完整的http请求。这里可能比较奇怪，读写事件处理函数都是ngx_http_request_handler，其实在这个函数中，会根据当前事件是读事件还是写事件，分别调用ngx_http_request_t中的read_event_handler或者是write_event_handler。由于此时，我们的请求头已经读取完成了，之前有说过，nginx的做法是先不读取请求body，所以这里面我们设置read_event_handler为ngx_http_block_reading，即不读取数据了。刚才说到，真正开始处理数据，是在ngx_http_handler这个函数里面，这个函数会设置write_event_handler为ngx_http_core_run_phases，并执行ngx_http_core_run_phases函数。ngx_http_core_run_phases这个函数将执行多阶段请求处理，nginx将一个http请求的处理分为多个阶段，那么这个函数就是执行这些阶段来产生数据。因为ngx_http_core_run_phases最后会产生数据，所以我们就很容易理解，为什么设置写事件的处理函数为ngx_http_core_run_phases了。在这里，我简要说明了一下函数的调用逻辑，我们需要明白最终是调用ngx_http_core_run_phases来处理请求，产生的响应头会放在ngx_http_request_t的headers_out中，这一部分内容，我会放在请求处理流程里面去讲。nginx的各种阶段会对请求进行处理，最后会调用filter来过滤数据，对数据进行加工，如truncked传输、gzip压缩等。这里的filter包括header filter与body filter，即对响应头或响应体进行处理。filter是一个链表结构，分别有header filter与body filter，先执行header filter中的所有filter，然后再执行body filter中的所有filter。在header filter中的最后一个filter，即ngx_http_header_filter，这个filter将会遍历所有的响应头，最后需要输出的响应头在一个连续的内存，然后调用ngx_http_write_filter进行输出。ngx_http_write_filter是body filter中的最后一个，所以nginx首先的body信息，在经过一系列的body filter之后，最后也会调用ngx_http_write_filter来进行输出(有图来说明)。
 
 这里要注意的是，nginx会将整个请求头都放在一个buffer里面，这个buffer的大小通过配置项client_header_buffer_size来设置，如果用户的请求头太大，这个buffer装不下，那nginx就会重新分配一个新的更大的buffer来装请求头，这个大buffer可以通过large_client_header_buffers来设置，这个large_buffer这一组buffer，比如配置4 8k，就是表示有四个8k大小的buffer可以用。注意，为了保存请求行或请求头的完整性，一个完整的请求行或请求头，需要放在一个连续的内存里面，所以，一个完整的请求行或请求头，只会保存在一个buffer里面。这样，如果请求行大于一个buffer的大小，就会返回414错误，如果一个请求头大小大于一个buffer大小，就会返回400错误。在了解了这些参数的值，以及nginx实际的做法之后，在应用场景，我们就需要根据实际的需求来调整这些参数，来优化我们的程序了。
 
@@ -231,7 +231,7 @@ ngx_str_t(100%)
 
     ngx_str_t str, str1;
     ngx_str_set(str, "hello world");    
-    ngx_str_null(str);
+    ngx_str_null(str1);
 
 不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误。如： 
 
@@ -376,7 +376,7 @@ ngx_pool_t是一个非常重要的数据结构，在很多重要的场合都有�
 
 从上面举的两个例子中我们可以看出，使用ngx_pool_t这个数据结构的时候，所有的资源的释放都在这个对象被销毁的时刻，统一进行了释放，那么就会带来一个问题，就是这些资源的生存周期（或者说被占用的时间）是跟ngx_pool_t的生存周期基本一致（ngx_pool_t也提供了少量操作可以提前释放资源）。从最高效的角度来说，这并不是最好的。比如，我们需要依次使用A，B，C三个资源，且使用完B的时候，A就不会再被使用了，使用C的时候A和B都不会被使用到。如果不使用ngx_pool_t来管理这三个资源，那我们可能从系统里面申请A，使用A，然后在释放A。接着申请B，使用B，再释放B。最后申请C，使用C，然后释放C。但是当我们使用一个ngx_pool_t对象来管理这三个资源的时候，A，B和C的是否是在最后一起发生的，也就是在使用完C以后。诚然，这在客观上增加了程序在一段时间的资源使用量。但是这也减轻了程序员分别管理三个资源的生命周期的工作。这也就是有所得，必有所失的道理。实际上是一个取舍的问题，在具体的情况下，你更在乎的是哪个。
 
-可以看一下在nginx里面一个典型的使用ngx_pool_t的场景，对于nginx处理的每个http request, nginx会生成一个ngx_pool_t对象与这个http requst关联，所有处理过程中需要申请的资源都从这个ngx_pool_t对象中获取，当这个http requst处理完成以后，所有在处理过程中申请的资源，都讲随着这个关联的ngx_pool_t对象的销毁而释放。
+可以看一下在nginx里面一个典型的使用ngx_pool_t的场景，对于nginx处理的每个http request, nginx会生成一个ngx_pool_t对象与这个http request关联，所有处理过程中需要申请的资源都从这个ngx_pool_t对象中获取，当这个http request处理完成以后，所有在处理过程中申请的资源，都讲随着这个关联的ngx_pool_t对象的销毁而释放。
 
 ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 
@@ -676,7 +676,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
 
 该函数迎来构建一个可以包含通配符key的hash表。
 
-:hint: 构造一个通配符hash表的一些参数的一个集合。关于该参数对应的类型的说明，请参见ngx_hash_t类型中ngx_hash_init函数的说明。
+:hinit: 构造一个通配符hash表的一些参数的一个集合。关于该参数对应的类型的说明，请参见ngx_hash_t类型中ngx_hash_init函数的说明。
 
 :names: 构造此hash表的所有的通配符key的数组。特别要注意的是这里的key已经都是被预处理过的。例如：“\*.abc.com”或者“.abc.com”被预处理完成以后，变成了“com.abc.”。而“mail.xxx.\*”则被预处理为“mail.xxx.”。为什么会被处理这样？这里不得不简单地描述一下通配符hash表的实现原理。当构造此类型的hash表的时候，实际上是构造了一个hash表的一个“链表”，是通过hash表中的key“链接”起来的。比如：对于“\*.abc.com”将会构造出2个hash表，第一个hash表中有一个key为com的表项，该表项的value包含有指向第二个hash表的指针，而第二个hash表中有一个表项abc，该表项的value包含有指向\*.abc.com对应的value的指针。那么查询的时候，比如查询www.abc.com的时候，先查com，通过查com可以找到第二级的hash表，在第二级hash表中，再查找abc，依次类推，直到在某一级的hash表中查到的表项对应的value对应一个真正的值而非一个指向下一级hash表的指针的时候，查询过程结束。**这里有一点需要特别注意的，就是names数组中元素的value所对应的值（也就是真正的value所在的地址）必须是能被4整除的，或者说是在4的倍数的地址上是对齐的。因为这个value的值的低两位bit是有用的，所以必须为0。如果不满足这个条件，这个hash表查询不出正确结果。**
 
@@ -933,7 +933,7 @@ ngx_buf_t(99%)
 
 :tag: 实际上是一个void\*类型的指针，使用者可以关联任意的对象上去，只要对使用者有意义。
 
-:file: 当buf所包含的内容在文件中是，file字段指向对应的文件对象。
+:file: 当buf所包含的内容在文件中时，file字段指向对应的文件对象。
 
 :shadow: 当这个buf完整copy了另外一个buf的所有字段的时候，那么这两个buf指向的实际上是同一块内存，或者是同一个文件的同一部分，此时这两个buf的shadow字段都是指向对方的。那么对于这样的两个buf，在释放的时候，就需要使用者特别小心，具体是由哪里释放，要提前考虑好，如果造成资源的多次释放，可能会造成程序崩溃！
 
@@ -1318,7 +1318,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 #) 接收和处理这些事件，如是接受到数据，则产生更高层的request对象。
 #) 处理request的header和body。
 #) 产生响应，并发送回客户端。
-#) 完成requst的处理。
+#) 完成request的处理。
 #) 重新初始化定时器及其他事件。
 
 
@@ -1372,7 +1372,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 #) 如果一个location里面有配置  random_index  on，那么随机选择一个文件，发送给客户端。
 #) 如果一个location里面有配置 index指令，那么发送index指令指名的文件，给客户端。
 #) 如果一个location里面有配置 autoindex  on，那么就发送请求地址对应的服务端路径下的文件列表给客户端。
-#) 如果这个requst对应的location上有设置gzip_static on，那么就查找是否有对应的.gz文件存在，有的话，就发送这个给客户端（客户端支持gzip的情况下）。
+#) 如果这个request对应的location上有设置gzip_static on，那么就查找是否有对应的.gz文件存在，有的话，就发送这个给客户端（客户端支持gzip的情况下）。
 #) 请求的URI如果对应一个静态文件，static module就发送静态文件的内容到客户端。
 
 内容产生阶段完成以后，生成的输出会被传递到filter模块去进行处理。filter模块也是与location相关的。所有的fiter模块都被组织成一条链。输出会依次穿越所有的filter，直到有一个filter模块的返回值表明已经处理完成。
