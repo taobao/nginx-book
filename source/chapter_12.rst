@@ -1001,7 +1001,188 @@ ngx_http_read_discarded_request_body()函数非常简单，它循环的从链接
 多阶段处理请求
 --------------------------
 
+读取完请求头后，nginx进入请求的处理阶段。简单的情况下，客户端发送过的统一资源定位符(url)对应服务器上某一路径上的资源，web服务器需要做的仅仅是将url映射到本地文件系统的路径，然后读取相应文件并返回给客户端。但这仅仅是最初的互联网的需求，而如今互联网出现了各种各样复杂的需求，要求web服务器能够处理诸如安全及权限控制，多媒体内容和动态网页等等问题。这些复杂的需求导致web服务器不再是一个短小的程序，而变成了一个必须经过仔细设计，模块化的系统。nginx良好的模块化特性体现在其对请求处理流程的多阶段划分当中，多阶段处理流程就好像一条流水线，一个nginx进程可以并发的处理处于不同阶段的多个请求。nginx允许开发者在处理流程的任意阶段注册模块，在启动阶段，nginx会把各个阶段注册的所有模块处理函数按序的组织成一条执行链。
 
+nginx实际把请求处理流程划分为了11个阶段，这样划分的原因是将请求的执行逻辑细分，各阶段按照处理时机定义了清晰的执行语义，开发者可以很容易分辨自己需要开发的模块应该定义在什么阶段，下面介绍一下各阶段:
+
+:NGX_HTTP_POST_READ_PHASE: 接收完请求头之后的第一个阶段，它位于uri重写之前，实际上很少有模块会注册在该阶段，默认的情况下，该阶段被跳过；
+
+:NGX_HTTP_SERVER_REWRITE_PHASE: server级别的uri重写阶段，也就是该阶段执行处于server块内，location块外的重写指令，前面的章节已经说明在读取请求头的过程中nginx会根据host及端口找到对应的虚拟主机配置；
+
+:NGX_HTTP_FIND_CONFIG_PHASE: 寻找location配置阶段，该阶段使用重写之后的uri来查找对应的location，值得注意的是该阶段可能会被执行多次，因为也可能有location级别的重写指令；
+
+:NGX_HTTP_REWRITE_PHASE: location级别的uri重写阶段，该阶段执行location基本的重写指令，也可能会被执行多次；
+
+:NGX_HTTP_POST_REWRITE_PHASE: location级别重写的后一阶段，用来检查上阶段是否有uri重写，并根据结果跳转到合适的阶段；
+
+:NGX_HTTP_PREACCESS_PHASE: 访问权限控制的前一阶段，该阶段在权限控制阶段之前，一般也用于访问控制，比如限制访问频率，链接数等；
+
+:NGX_HTTP_ACCESS_PHASE: 访问权限控制阶段，比如基于ip黑白名单的权限控制，基于用户名密码的权限控制等；
+
+:NGX_HTTP_POST_ACCESS_PHASE: 访问权限控制的后一阶段，该阶段根据权限控制阶段的执行结果进行相应处理；
+
+:NGX_HTTP_TRY_FILES_PHASE: try_files指令的处理阶段，如果没有配置try_files指令，则该阶段被跳过；
+
+:NGX_HTTP_CONTENT_PHASE: 内容生成阶段，该阶段产生响应，并发送到客户端；
+
+:NGX_HTTP_LOG_PHASE: 日志记录阶段，该阶段记录访问日志。
+
+多阶段执行链
+~~~~~~~~~~~~~~
+
+nginx按请求处理的执行顺序将处理流程划分为多个阶段，一般每个阶段又可以注册多个模块处理函数，nginx按阶段将这些处理函数组织成了一个执行链，这个执行链保存在http主配置（ngx_http_core_main_conf_t）的phase_engine字段中，phase_engine字段的类型为ngx_http_phase_engine_t：
+
+.. code:: c
+
+    typedef struct {
+        ngx_http_phase_handler_t  *handlers;
+        ngx_uint_t                 server_rewrite_index;
+        ngx_uint_t                 location_rewrite_index;
+    } ngx_http_phase_engine_t;
+
+其中handlers字段即为执行链，实际上它是一个数组，而每个元素之间又被串成链表，从而允许执行流程向前，或者向后的阶段跳转，执行链节点的数据结构定义如下：
+
+.. code:: c
+
+    struct ngx_http_phase_handler_s {
+        ngx_http_phase_handler_pt  checker;
+        ngx_http_handler_pt        handler;
+        ngx_uint_t                 next;
+    };
+
+其中checker和handler都是函数指针，相同阶段的节点具有相同的checker函数，handler字段保存的是模块处理函数，一般在checker函数中会执行当前节点的handler函数，但是例外的是NGX_HTTP_FIND_CONFIG_PHASE，NGX_HTTP_POST_REWRITE_PHASE，NGX_HTTP_POST_ACCESS_PHASE和NGX_HTTP_TRY_FILES_PHASE这4个阶段不能注册模块函数。next字段为快速跳跃索引，多数情况下，执行流程是按照执行链顺序的往前执行，但在某些执行阶段的checker函数中由于执行了某个逻辑可能需要回跳至之前的执行阶段，也可能需要跳过之后的某些执行阶段，next字段保存的就是跳跃的目的索引。
+
+和建立执行链相关的数据结构都保存在http主配置中，一个是phases字段，另外一个是phase_engine字段。其中phases字段为一个数组，它的元素个数等于阶段数目，即每个元素对应一个阶段。而phases数组的每个元素又是动态数组（ngx_array_t），每次模块注册处理函数时只需要在对应阶段的动态数组增加一个元素用来保存处理函数的指针。由于在某些执行阶段可能需要向后，或者向前跳转，简单的使用2个数组并不方便，所以nginx又组织了一个执行链，保存在了phase_engine字段，其每个节点包含一个next域用来保存跳跃目的节点的索引，而执行链的建立则在nginx初始化的post config阶段之后调用ngx_http_init_phase_handlers函数完成，下面分析一下该函数：
+
+.. code:: c
+
+    static ngx_int_t
+    ngx_http_init_phase_handlers(ngx_conf_t *cf, ngx_http_core_main_conf_t *cmcf)
+    {
+        ngx_int_t                   j;
+        ngx_uint_t                  i, n;
+        ngx_uint_t                  find_config_index, use_rewrite, use_access;
+        ngx_http_handler_pt        *h;
+        ngx_http_phase_handler_t   *ph;
+        ngx_http_phase_handler_pt   checker;
+
+        cmcf->phase_engine.server_rewrite_index = (ngx_uint_t) -1;
+        cmcf->phase_engine.location_rewrite_index = (ngx_uint_t) -1;
+        find_config_index = 0;
+        use_rewrite = cmcf->phases[NGX_HTTP_REWRITE_PHASE].handlers.nelts ? 1 : 0;
+        use_access = cmcf->phases[NGX_HTTP_ACCESS_PHASE].handlers.nelts ? 1 : 0;
+
+        n = use_rewrite + use_access + cmcf->try_files + 1 /* find config phase */;
+
+        for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
+            n += cmcf->phases[i].handlers.nelts;
+        }
+
+        ph = ngx_pcalloc(cf->pool,
+                         n * sizeof(ngx_http_phase_handler_t) + sizeof(void *));
+        if (ph == NULL) {
+            return NGX_ERROR;
+        }
+
+        cmcf->phase_engine.handlers = ph;
+        n = 0;
+
+        for (i = 0; i < NGX_HTTP_LOG_PHASE; i++) {
+            h = cmcf->phases[i].handlers.elts;
+
+            switch (i) {
+
+            case NGX_HTTP_SERVER_REWRITE_PHASE:
+                if (cmcf->phase_engine.server_rewrite_index == (ngx_uint_t) -1) {
+                    cmcf->phase_engine.server_rewrite_index = n;
+                }
+                checker = ngx_http_core_rewrite_phase;
+
+                break;
+
+            case NGX_HTTP_FIND_CONFIG_PHASE:
+                find_config_index = n;
+
+                ph->checker = ngx_http_core_find_config_phase;
+                n++;
+                ph++;
+
+                continue;
+
+            case NGX_HTTP_REWRITE_PHASE:
+                if (cmcf->phase_engine.location_rewrite_index == (ngx_uint_t) -1) {
+                    cmcf->phase_engine.location_rewrite_index = n;
+                }
+                checker = ngx_http_core_rewrite_phase;
+
+                break;
+
+            case NGX_HTTP_POST_REWRITE_PHASE:
+                if (use_rewrite) {
+                    ph->checker = ngx_http_core_post_rewrite_phase;
+                    ph->next = find_config_index;
+                    n++;
+                    ph++;
+                }
+
+                continue;
+
+            case NGX_HTTP_ACCESS_PHASE:
+                checker = ngx_http_core_access_phase;
+                n++;
+                break;
+
+            case NGX_HTTP_POST_ACCESS_PHASE:
+                if (use_access) {
+                    ph->checker = ngx_http_core_post_access_phase;
+                    ph->next = n;
+                    ph++;
+                }
+
+                continue;
+
+            case NGX_HTTP_TRY_FILES_PHASE:
+                if (cmcf->try_files) {
+                    ph->checker = ngx_http_core_try_files_phase;
+                    n++;
+                    ph++;
+                }
+
+                continue;
+
+            case NGX_HTTP_CONTENT_PHASE:
+                checker = ngx_http_core_content_phase;
+                break;
+
+            default:
+                checker = ngx_http_core_generic_phase;
+            }
+
+            n += cmcf->phases[i].handlers.nelts;
+
+            for (j = cmcf->phases[i].handlers.nelts - 1; j >=0; j--) {
+                ph->checker = checker;
+                ph->handler = h[j];
+                ph->next = n;
+                ph++;
+            }
+        }
+
+        return NGX_OK;
+    }
+
+首先需要说明的是cmcf->phases数组中保存了在post  config之前注册的所有模块函数，上面的函数先计算执行链的节点个数，并分配相应的空间，前面提到有4个阶段不能注册模块，并且POST_REWRITE和POST_ACCESS这2个阶段分别只有在REWRITE和ACCESS阶段注册了模块时才存在，另外TRY_FILES阶段只有在配置了try_files指令的时候才存在，最后FIND_CONFIG阶段虽然不能注册模块，但它是必须存在的，所以在计算执行链节点数时需要考虑这些因素。
+
+分配好内存之后，开始建立链表，过程很简单，遍历每个阶段注册的模块函数，为每个阶段的节点赋值checker函数，handler函数，以及next索引。最终建立好的执行链如下图：
+
+(暂缺)
+
+SERVER_REWRITE阶段的节点的next域指向FIND_CONFIG阶段的第1个节点，REWRITE阶段的next域指向POST_REWRITE阶段的第1个节点，而POST_REWRITE阶段的next域则指向FIND_CONFIG，因为当出现location级别的uri重写时，可能需要重新匹配新的location，PREACCESS阶段的next域指向ACCESS域，ACCESS和POST_ACCESS阶段的next域则是则是指向CONTENT阶段，当然如果TRY_FILES阶段存在的话，则是指向TRY_FILES阶段，最后CONTENT阶段的next域指向LOG阶段，当然next域是每个阶段的checker函数根据该阶段的需求来使用的，没有需要时，checker函数可能都不会使用到它。
+
+POST_READ阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+POST_READ阶段是nginx处理请求流程中第一个可以添加模块函数的阶段，任何需要在接收完请求头之后立刻处理的逻辑可以在该阶段注册处理函数。nginx源码中只有realip模块在该阶段注册了函数，当nginx前端多了一个7层负载均衡层，并且客户端的真实ip被前端保存在请求头中时，该模块用来将客户端的ip替换为请求头中保存的值。realip模块之所以在POST_READ阶段执行的原因是它需要在其他模块执行之前悄悄的将客户端ip替换为真实值，而且它需要的信息仅仅只是请求头。一般很少有模块需要注册在POST_READ阶段，realip模块默认没有编译进nginx。
 
 find-config阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
