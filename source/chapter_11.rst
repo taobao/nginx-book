@@ -41,7 +41,7 @@ ngx_init_cycle提供的是配置解析接口。接口是一个切入点，通过
 
 nginx根据以往的经验（old_cycle）预测这一次的配置需要分配多少内存。比如，我们可以看这段：
 
-.. code:: c
+.. code-block:: none
 
     if (old_cycle->shared_memory.part.nelts) {
         n = old_cycle->shared_memory.part.nelts;
@@ -67,7 +67,7 @@ nginx根据以往的经验（old_cycle）预测这一次的配置需要分配多
 
 nginx启动可能出错，出错就要记录到错误日志中。而错误日志本身也是配置的一部分，所以不解析完配置，nginx就不能了解错误日志的信息。nginx通过使用上一个周期的错误日志来记录解析配置时发生的错误，而在配置解析完成以后，nginx就用新的错误日志替换旧的错误日志。具体代码摘抄如下，以说明nginx解析配置时使用old_cycle的错误日志：
 
-.. code:: c
+.. code-block:: none
 
     log = old_cycle->log;
     pool->log = log;
@@ -77,7 +77,7 @@ nginx启动可能出错，出错就要记录到错误日志中。而错误日志
 
 主要是两个数据结果，一个是ngx_cycle_t结构，一个是ngx_conf_t结构。前者用于存放所有CORE模块的配置，后者则是用于存放解析配置的上下文信息。具体代码如下：
 
-.. code:: c
+.. code-block:: none
 
     for (i = 0; ngx_modules[i]; i++) {
         if (ngx_modules[i]->type != NGX_CORE_MODULE) {
@@ -105,7 +105,7 @@ nginx启动可能出错，出错就要记录到错误日志中。而错误日志
 
 准备好了这些内容，nginx开始调用配置解析模块，其代码如下：
 
-.. code:: c
+.. code-block:: none
 
     if (ngx_conf_param(&conf) != NGX_CONF_OK) {
         environ = senv;
@@ -149,7 +149,7 @@ ngx_conf_parse()解析配置分成两个主要阶段，一个是词法分析，�
 
 词法分析通过ngx_conf_read_token()函数完成。指令解析有两种方式，其一是使用nginx内建的指令解析机制，其二是使用第三方自定义指令解析机制。自定义指令解析可以参见下面的代码：
 
-.. code:: c
+.. code-block:: none
 
     if (cf->handler) {
         rv = (*cf->handler)(cf, NULL, cf->handler_conf);
@@ -172,7 +172,7 @@ ngx_conf_parse()解析配置分成两个主要阶段，一个是词法分析，�
 
 1. 只有处理的模块的类型是NGX_CONF_MODULE或者是当前正在处理的模块类型，才可能被执行。nginx中有一种模块类型是NGX_CONF_MODULE，当前只有ngx_conf_module一种，只支持一条指令“include”。“include”指令的实现我们后面再进行介绍。
 
-.. code:: c
+.. code-block:: none
 
     ngx_modules[i]->type != NGX_CONF_MODULE && ngx_modules[i]->type != cf->module_type
 
@@ -180,25 +180,25 @@ ngx_conf_parse()解析配置分成两个主要阶段，一个是词法分析，�
 
 a) 指令的Context必须当前解析Context相符；
 
-.. code:: c
+.. code-block:: none
 
     !(cmd->type & cf->cmd_type)
 
 b) 非块指令必须以“;”结尾；
 
-.. code:: c
+.. code-block:: none
 
     !(cmd->type & NGX_CONF_BLOCK) && last != NGX_OK
 
 c) 块指令必须后接“{”；
 
-.. code:: c
+.. code-block:: none
 
     (cmd->type & NGX_CONF_BLOCK) && last != NGX_CONF_BLOCK_START
 
 d) 指令参数个数必须正确。注意指令参数有最大值NGX_CONF_MAX_ARGS，目前值为8。
 
-.. code:: c
+.. code-block:: none
 
     if (!(cmd->type & NGX_CONF_ANY)) {
 
@@ -231,7 +231,7 @@ d) 指令参数个数必须正确。注意指令参数有最大值NGX_CONF_MAX_A
 
 3. 取得指令工作的conf指针。
 
-.. code:: c
+.. code-block:: none
 
     if (cmd->type & NGX_DIRECT_CONF) {
         conf = ((void **) cf->ctx)[ngx_modules[i]->index];
@@ -251,7 +251,7 @@ a) NGX_DIRECT_CONF常量单纯用来指定配置存储区的寻址方法，只�
 
 b) NGX_MAIN_CONF常量有两重含义，其一是指定指令的使用上下文是main（其实还是指core模块），其二是指定配置存储区的寻址方法。所以，在代码中常常可以见到使用上下文是main的指令的cmd->type属性定义如下：
 
-.. code:: c
+.. code-block:: none
 
     NGX_MAIN_CONF|NGX_DIRECT_CONF|...
 
@@ -259,7 +259,7 @@ b) NGX_MAIN_CONF常量有两重含义，其一是指定指令的使用上下文�
 
 使用NGX_MAIN_CONF还表示指定配置存储区的寻址方法的指令有4个：“events”、“http”、“mail”、“imap”。这四个指令也有共同之处——都是使用上下文是main的块指令，并且块中的指令都使用其他类型的模块（分别是event模块、http模块、mail模块和mail模块）来处理。
 
-.. code:: c
+.. code-block:: none
 
     NGX_MAIN_CONF|NGX_CONF_BLOCK|...
 
@@ -269,7 +269,7 @@ c) 除开core模块，其他类型的模块都会使用第三种配置寻址方�
 
 4. 执行指令解析回调函数
 
-.. code:: c
+.. code-block:: none
 
     rv = cmd->set(cf, cmd, conf);
 
@@ -297,7 +297,7 @@ http是作为一个core模块被nginx通用解析过程解析的，其核心就�
 创建并初始化上下文环境
 ..........................
 
-.. code:: c
+.. code-block:: none
 
     ctx = ngx_pcalloc(cf->pool, sizeof(ngx_http_conf_ctx_t));
 
@@ -355,7 +355,7 @@ http模块的上下文环境ctx（注意我们在通用解析流程中提到的c
 调用通用解析流程解析
 ..........................
 
-.. code:: c
+.. code-block:: none
 
     cf->module_type = NGX_HTTP_MODULE;
     cf->cmd_type = NGX_HTTP_MAIN_CONF;
@@ -366,7 +366,7 @@ http模块的上下文环境ctx（注意我们在通用解析流程中提到的c
 根据解析结果进行后续合并处理
 ..................................
 
-.. code:: c
+.. code-block:: none
 
     for (m = 0; ngx_modules[m]; m++) {
         if (module->init_main_conf) {
@@ -415,7 +415,7 @@ http模块的上下文环境ctx（注意我们在通用解析流程中提到的c
         return NGX_CONF_ERROR;
     }
 
-以上是http配置处理最重要的步骤。首先，在这里调用了各个模块的postconfiguration回调函数完成了模块配置过程。更重要的是，它为nginx建立了一棵完整的配置树（叶子节点为location，包含location的完整配置）、完整的location搜索树、一张变量表、一张完成的阶段处理回调表(phase handler)、一张server对照表和一张端口对照表。下面我们将分别介绍这些配置表的生成过程。
+以上是http配置处理最重要的步骤。首先，在这里调用了各个模块的postconfiguration回调函数完成了模块配置过程。更重要的是，它为nginx建立了一棵完整的配置树（叶子节点为location，包含location的完整配置）、完整的location搜索树、一张变量表、一张完成的阶段处理回调表(phase handler)、一张server对照表和一张端口监听表。下面我们将分别介绍这些配置表的生成过程。
 
 location配置树
 ^^^^^^^^^^^^^^^^^^^^^
@@ -431,7 +431,7 @@ location配置树
 
 前面列出的
 
-.. code:: c
+.. code-block:: none
 
     for (m = 0; ngx_modules[m]; m++) {
         if (module->init_main_conf) {
@@ -443,7 +443,7 @@ location配置树
 
 就是初始化HTTP上下文，并且完成两步配置合并操作：从HTTP上下文合并到虚拟主机上下文，以及从虚拟主机上下文合并到路径上下文。其中，合并到路径上下问的操作是在ngx_http_merge_servers函数中进行的，见
 
-.. code:: c
+.. code-block:: none
 
     if (module->merge_loc_conf) {
 
@@ -464,7 +464,7 @@ location搜索树
 
 所以，nginx存放location的有两个指针，分别是
 
-.. code:: c
+.. code-block:: none
 
     struct ngx_http_core_loc_conf_s {
 
@@ -514,7 +514,7 @@ location搜索树
 
 有了这些基础知识，可以看代码了。首先是ngx_http_init_locations函数
 
-.. code:: c
+.. code-block:: none
 
     ngx_queue_sort(locations, ngx_http_cmp_locations);
 
@@ -583,7 +583,7 @@ location搜索树
 
 另外还要注意一点，就是ngx_http_init_locations的迭代调用，这里的clcf引用了两个我们没有介绍过的字段exact和inclusive。这两个字段最初是在ngx_http_add_location函数（添加location配置时必然调用）中设置的：
 
-.. code:: c
+.. code-block:: none
 
         if (clcf->exact_match
     #if (NGX_PCRE)
@@ -605,7 +605,7 @@ location搜索树
 
 还有普通前端匹配的路径、抢占式前缀匹配的路径和精确匹配的路径这三类。
 
-.. code:: c
+.. code-block:: none
 
     if (ngx_http_join_exact_locations(cf, locations) != NGX_OK) {
         return NGX_ERROR;
@@ -622,7 +622,7 @@ location搜索树
 
 ngx_http_join_exact_locations函数是将名字相同的精确匹配的路径和两类前缀匹配的路径合并，合并方法
 
-.. code:: c
+.. code-block:: none
 
             lq->inclusive = lx->inclusive;
 
@@ -632,7 +632,7 @@ ngx_http_join_exact_locations函数是将名字相同的精确匹配的路径和
 
 ngx_http_create_locations_list函数将和某个路径名拥有相同名称前缀的路径添加到此路径节点的list指针域下，并将这些路径从locations中摘除。其核心代码是
 
-.. code:: c
+.. code-block:: none
 
     ngx_queue_split(&lq->list, x, &tail);
     ngx_queue_add(locations, &tail);
@@ -718,24 +718,52 @@ server对照表
 
 处理后缀通配更简单，直接去掉通配符。也举个例子，“www.example.\*”会被转换成“www.example\\0”。
 
-端口对照表
+端口监听表
 ^^^^^^^^^^^^^^^^^^^^^^
 
-对于所有写在server配置中的listen指令，nginx都会以ip和端口两个维度
+对于所有写在server配置中的listen指令，nginx开始会建立一张server和端口的对照索引表。虽然这不是本节的要点，但要说明索引表到监听表的转换过程，还是需要描述其结构。如图11-3所示，这张索引表是二级索引，第一级索引以listen指定的端口为键，第二级索引以listen指定的地址为键，索引的对象就是server上下文数据结构。而端口监视表是两张表，其结构如图11-4所示。
+索引表和监听表在结构上非常类似，但是却有一个非常明显的不同。索引表中第一张表的各表项的端口是唯一的，而监听表的第一张表中的不同表项的端口却可能是相同的。之所以出现这样的差别，是因为nginx会为监听表第一张表中的每一项分别建立监听套接字，而在索引表中，如果配置显式定义了需要监听不同IP地址的相同端口，它在索引表中会放在同一个端口的二级索引中，而在监听表中必须存放为两个端口相同的不同监听表项。
 
+说明了两张表的结构，现在可以介绍转换过程：
+
+第一步，在ngx_http_optimize_servers()函数中，对索引表一级索引中的所有port下辖的二级索引分别进行排序。排序的规则是
+
+1. 含wildcard属性的二级索引最终会尽可能排到尾部。这些二级索引类似于
+
+.. code-block:: none
+
+    listen *:80;
+    listen 80;
+
+2. 含bind属性的二级索引最终会尽可能排到首部。这些二级索引是由那些设置了"bind"、"backlog"、"rcvbuf"、"sndbuf"、"accept_filter"、"deferred"、"ipv6only"和"so_keepalive"参数的listen指令生成的。
+
+3. 其他二级索引，其相对顺序不变，排在含bind属性的二级索引之后，而在含wildcard属性的二级索引之前。
+
+第二步，将索引表转换为监听表，这是在ngx_http_init_listening()函数中实现的。其步骤是
+
+1. 得到是否有二级索引含有wildcard属性，只需要看看排序后的二级索引的最后一项就可以了。
+
+2. 顺次将所有含有bind属性的二级索引以一对一的方式生成监听表的表项（第一级和第二级都只有一项）。
+
+3. 如果第一步检测到不含wildcard属性，则顺次将后续所有二级索引以一对一的方式生成监听表的表项。
+
+4. 如果第一步检测到含wildcard属性，则以含wildcard属性的二级索引创建监听表的一级表项，并将二级索引中从第一不含bind属性的表项开始的所有表项一同转换成为刚刚创建的监听表一级表项的下级表项。
 
 善后工作
 ....................
 
-善后工作基本的就是一件事，还原解析上下文。“http”指令是这个干的
+善后工作基本的就是一件事，还原解析上下文。“http”指令是这个进行的
 
-.. code:: c
+.. code-block:: none
 
     *cf = pcf;
 
 server的管理
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-这里我们略去了http解析的过程，因为http是作为一个core模块被nginx标准解析
+
+前面介绍的http处理逻辑在处理“server {}”时仍然适用。server相对较为特殊的是两个指令，一个是"server_name"，一个是"listen"。
+
+就在上一节，我们已经介绍了"server_name"
 
 
 location的管理
