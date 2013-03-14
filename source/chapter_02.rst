@@ -199,13 +199,13 @@ ngx_str_t(100%)
 
 .. code:: c
 
-    ngx_str_set(str, text)
+    ngx_str_set(&str, text)
 
 设置字符串str为text，text必须为常量字符串。
 
 .. code:: c
 
-    ngx_str_null(str) 
+    ngx_str_null(&str) 
 
 设置字符串str为空串，长度为0，data为NULL。
 
@@ -230,8 +230,8 @@ ngx_str_t(100%)
 .. code:: c
 
     ngx_str_t str, str1;
-    ngx_str_set(str, "hello world");    
-    ngx_str_null(str1);
+    ngx_str_set(&str, "hello world");    
+    ngx_str_null(&str1);
 
 不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误。如： 
 
@@ -239,7 +239,7 @@ ngx_str_t(100%)
 
    ngx_str_t str;
    u_char *a = "hello world";
-   ngx_str_set(str, a);    // 问题产生
+   ngx_str_set(&str, a);    // 问题产生
 
 
 .. code:: c
