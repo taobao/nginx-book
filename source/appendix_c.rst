@@ -9,7 +9,7 @@ C.1 编译与安装
 环境要求
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-    操作系统：目前Nginx各版本在以下操作系统和平台测试通过：
+操作系统：目前Nginx各版本在以下操作系统和平台测试通过：
     
         FreeBSD 3  — 10 / i386; FreeBSD 5  — 10 / amd64;
         
@@ -25,10 +25,11 @@ C.1 编译与安装
         
         Windows XP, Windows Server 2003
         
-    磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
+磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
     
-    编译器及相关工具： 必须确保操作系统安装有GCC编译器；Autoconf和Automake工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ autoconf automake；
-    模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
+编译器及相关工具： 必须确保操作系统安装有GCC编译器；Autoconf和Automake工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ autoconf automake；
+
+模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
         
         
 下载
@@ -41,12 +42,12 @@ Nginx是开源软件，用户可以访问 http://nginx.org/ 网站获取源码�
 Nginx在Windows环境下安装
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-    nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理请求所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
+nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理请求所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
 
-    安装Nginx的Windows版本，建议下载最新的1.3.13开发版本，因为开发分支上包含了所有已知的问题修复，尤其是针对Windows版本的问题修复。解压下载得到的zip文件，进入nginx-1.3.13目录，运行nginx。
+安装Nginx的Windows版本，建议下载最新的1.3.13开发版本，因为开发分支上包含了所有已知的问题修复，尤其是针对Windows版本的问题修复。解压下载得到的zip文件，进入nginx-1.3.13目录，运行nginx。
 
     
-        C盘根目录下安装例子
+C盘根目录下安装例子
         
 .. code::
 
@@ -55,9 +56,10 @@ Nginx在Windows环境下安装
         cd nginx-1.3.13
         start nginx
 
-        Nginx的Windows版本的控制命令包含如下：
         
-.. code:: c
+Nginx的Windows版本的控制命令包含如下：
+        
+.. code::
 
         nginx -s stop 快速退出
         nginx -s quit 优雅退出
@@ -67,9 +69,9 @@ Nginx在Windows环境下安装
 Nginx在Linux环境下安装
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-        Nginx在Linux环境下可以通过编译源码的方式安装，最简单的安装命令如下：
+Nginx在Linux环境下可以通过编译源码的方式安装，最简单的安装命令如下：
         
-.. code:: c
+.. code::
 
         wget http://nginx.org/download/nginx-1.2.0.tar.gz
         tar zxvf nginx-1.2.0.tar.gz
@@ -80,9 +82,9 @@ Nginx在Linux环境下安装
         
 按照以上命令，Nginx将被默认安装到/usr/local/nginx目录下。用户可以通过./configure --help命令查看Nginx可选择的编译选项进行自定义安装配置。
 
-        Nginx的configure脚本支持以下选项:
+Nginx的configure脚本支持以下选项:
 
-.. code:: c
+.. code::
 
         --prefix=<PATH> #Nginx安装路径。如果没有指定，默认为 /usr/local/nginx
 
@@ -228,9 +230,9 @@ Nginx在Linux环境下安装
 测试
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-        将Nginx conf文件的server block部分的配置如下：        
+将Nginx conf文件的server block部分的配置如下：        
         
-.. code:: c
+.. code::
 
     server {
         listen 80;
@@ -255,8 +257,9 @@ Nginx在Linux环境下安装
 Nginx在Windows环境下查看nginx进程
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-        用户还可以通过命令行运行tasklist命令来查看nginx进程：
-.. code:: c
+用户还可以通过命令行运行tasklist命令来查看nginx进程：
+
+.. code::
 
         C:\>tasklist /fi "imagename eq nginx.exe"
 
@@ -270,8 +273,9 @@ Nginx在Windows环境下查看nginx进程
 
 Nginx在Linux环境下查看nginx进程
 ^^^^^^^^^^^^^^^^^^^^^^^^  
-        用户可以通过执行ps/top命令来查看nginx进程：
-.. code:: c        
+用户可以通过执行ps/top命令来查看nginx进程：
+
+.. code::       
         
         ps aux|grep nginx
         admin 24913 0.0 0.0 58596 1048 ? Ss Feb27 0:00 nginx: master process ./nginx
