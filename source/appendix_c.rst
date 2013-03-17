@@ -9,33 +9,46 @@ C.1 编译与安装
 环境要求
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-操作系统：目前Nginx各版本在以下操作系统和平台测试通过：
+    操作系统：目前Nginx各版本在以下操作系统和平台测试通过：
+    
         FreeBSD 3  — 10 / i386; FreeBSD 5  — 10 / amd64;
+        
         Linux 2.2  — 3 / i386; Linux 2.6  — 3 / amd64;
+        
         Solaris 9 / i386, sun4u; Solaris 10 / i386, amd64, sun4v;
+        
         AIX 7.1 / powerpc;
+        
         HP-UX 11.31 / ia64;
+        
         MacOS X / ppc, i386;
+        
         Windows XP, Windows Server 2003
-磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
-编译器及相关工具： 必须确保操作系统安装有GCC编译器；Autoconf和Automake工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ autoconf automake
-模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel
+        
+    磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
+    
+    编译器及相关工具： 必须确保操作系统安装有GCC编译器；Autoconf和Automake工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ autoconf automake；
+    模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
+        
         
 下载
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-Nginx是开源软件，用户可以访问http://nginx.org/网站获取源码包或Windows二进制文件下载。其中1.3.x版本为开发版本，1.2.x版本为稳定版本。开发版本分支会较快的获得新功能和缺陷修复，但同时也可能会遇到新的缺陷。一旦更新稳定下来，就会被加入稳定版本分支。
+Nginx是开源软件，用户可以访问 http://nginx.org/ 网站获取源码包或Windows二进制文件下载。其中1.3.x版本为开发版本，1.2.x版本为稳定版本。开发版本分支会较快的获得新功能和缺陷修复，但同时也可能会遇到新的缺陷。一旦更新稳定下来，就会被加入稳定版本分支。
+
 作为生产环境，通常建议用户使用稳定版本。
 
 Nginx在Windows环境下安装
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理请求所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
-安装Nginx的Windows版本，建议下载最新的1.3.13开发版本，因为开发分支上包含了所有已知的问题修复，尤其是针对Windows版本的问题修复。解压下载得到的zip文件，进入nginx-1.3.13目录，运行nginx。
+    nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理请求所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
 
+    安装Nginx的Windows版本，建议下载最新的1.3.13开发版本，因为开发分支上包含了所有已知的问题修复，尤其是针对Windows版本的问题修复。解压下载得到的zip文件，进入nginx-1.3.13目录，运行nginx。
+
+    
         C盘根目录下安装例子
         
-.. code:: c
+.. code::
 
         cd c:\
         unzip nginx-1.3.13.zip
