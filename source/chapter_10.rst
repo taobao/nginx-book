@@ -156,7 +156,7 @@ ngx_pcalloc其只是ngx_palloc的一个封装，将申请到的内存全部初�
 
 ngx_palloc相对ngx_pnalloc，其会将申请的内存大小向上扩增到NGX_ALIGNMENT的倍数，以方便内存对齐，减少内存访问次数。
 
-.. image:: http://tengine.taobao.org/book/_images/chapter-10-1.PNG
+.. image:: https://raw.github.com/yzprofile/nginx-book/master/source/images/chapter-10-1.PNG
     :alt: 内存池
     :align: center
 
