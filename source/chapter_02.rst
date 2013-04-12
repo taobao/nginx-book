@@ -800,7 +800,7 @@ ngx_hash_keys_arrays_t(100%)
 在定义一个这个类型的变量，并对字段pool和temp_pool赋值以后，就可以调用函数ngx_hash_add_key把所有的key加入到这个结构中了，该函数会自动实现普通key，带前向通配符的key和带后向通配符的key的分类和检查，并将这个些值存放到对应的字段中去，
 然后就可以通过检查这个结构体中的keys、dns_wc_head、dns_wc_tail三个数组是否为空，来决定是否构建普通hash表，前向通配符hash表和后向通配符hash表了（在构建这三个类型的hash表的时候，可以分别使用keys、dns_wc_head、dns_wc_tail三个数组）。
 
-构建出这三个hash表以后，可以组合在一个ngx_hash_combined_t对象中，使用ngx_hash_find_combined进行查找。或者是仍然保持三个独立的变量对应这三个hash表，自I机决定何时以及在哪个hash表中进行查询。
+构建出这三个hash表以后，可以组合在一个ngx_hash_combined_t对象中，使用ngx_hash_find_combined进行查找。或者是仍然保持三个独立的变量对应这三个hash表，自己决定何时以及在哪个hash表中进行查询。
 
 .. code:: c
 
