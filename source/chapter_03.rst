@@ -1054,7 +1054,7 @@ http static module的代码位于src/http/modules/ngx_http_static_module.c中，
 		return ngx_http_output_filter(r, &out);
 	}
 
-首先是检查NGX_HTTP_GET|NGX_HTTP_HEAD|NGX_HTTP_POST，对就是客户端的请求类型，就这三种，其他一律NGX_HTTP_NOT_ALLOWED。
+首先是检查客户端的http请求类型（r->method），如果请求类型为NGX_HTTP_GET|NGX_HTTP_HEAD|NGX_HTTP_POST，则继续进行处理，否则一律返回NGX_HTTP_NOT_ALLOWED从而拒绝客户端的发起的请求。
 
 其次是检查请求的url的结尾字符是不是斜杠‘/’，如果是说明请求的不是一个文件，给后续的handler去处理，比如后续的ngx_http_autoindex_handler（如果是请求的是一个目录下面，可以列出这个目录的文件），或者是ngx_http_index_handler（如果请求的路径下面有个默认的index文件，直接返回index文件的内容）。
 
