@@ -8,31 +8,34 @@ nginx的源码目录结构
 ------------------------------
 
 nginx的优秀除了体现在程序结构以及代码风格上，nginx的源码组织也同样简洁明了，目录结构层次结构清晰，值得我们去学习。nginx的源码目录与nginx的模块化以及功能的划分是紧密结合，这也使得我们可以很方便地找到相关功能的代码。这节先介绍nginx源码的目录结构，先对nginx的源码有一个大致的认识，下节会讲解nginx如何编译。
-下面是nginx源码的目录结构：
-.
-├── auto            自动检测系统环境以及编译相关的脚本
-│   ├── cc          关于编译器相关的编译选项的检测脚本
-│   ├── lib         nginx编译所需要的一些库的检测脚本
-│   ├── os          与平台相关的一些系统参数与系统调用相关的检测
-│   └── types       与数据类型相关的一些辅助脚本
-├── conf            存放默认配置文件，在make install后，会拷贝到安装目录中去
-├── contrib         存放一些实用工具，如geo配置生成工具（geo2nginx.pl）
-├── html            存放默认的网页文件，在make install后，会拷贝到安装目录中去
-├── man             nginx的man手册
-└── src             存放nginx的源代码
-    ├── core        nginx的核心源代码，包括常用数据结构的定义，以及nginx初始化运行的核心代码如main函数
-    ├── event       对系统事件处理机制的封装，以及定时器的实现相关代码
-    │   └── modules 不同事件处理方式的模块化，如select、poll、epoll、kqueue等
-    ├── http        nginx作为http服务器相关的代码
-    │   └── modules 包含http的各种功能模块
-    ├── mail        nginx作为邮件代理服务器相关的代码
-    ├── misc        一些辅助代码，测试c++头的兼容性，以及对google_perftools的支持
-    └── os          主要是对各种不同体系统结构所提供的系统函数的封装，对外提供统一的系统调用接口
+
+下面是nginx源码的目录结构： ::
+
+ .
+ ├── auto            自动检测系统环境以及编译相关的脚本
+ │   ├── cc          关于编译器相关的编译选项的检测脚本
+ │   ├── lib         nginx编译所需要的一些库的检测脚本
+ │   ├── os          与平台相关的一些系统参数与系统调用相关的检测
+ │   └── types       与数据类型相关的一些辅助脚本
+ ├── conf            存放默认配置文件，在make install后，会拷贝到安装目录中去
+ ├── contrib         存放一些实用工具，如geo配置生成工具（geo2nginx.pl）
+ ├── html            存放默认的网页文件，在make install后，会拷贝到安装目录中去
+ ├── man             nginx的man手册
+ └── src             存放nginx的源代码
+     ├── core        nginx的核心源代码，包括常用数据结构的定义，以及nginx初始化运行的核心代码如main函数
+     ├── event       对系统事件处理机制的封装，以及定时器的实现相关代码
+     │   └── modules 不同事件处理方式的模块化，如select、poll、epoll、kqueue等
+     ├── http        nginx作为http服务器相关的代码
+     │   └── modules 包含http的各种功能模块
+     ├── mail        nginx作为邮件代理服务器相关的代码
+     ├── misc        一些辅助代码，测试c++头的兼容性，以及对google_perftools的支持
+     └── os          主要是对各种不同体系统结构所提供的系统函数的封装，对外提供统一的系统调用接口
 
 
 
 nginx的configure原理
 ---------------------------
+
 nginx的编译旅程将从configure开始，configure脚本将根据我们输入的选项、系统环境参与来生成所需的文件（包含源文件与Makefile文件）。configure会调用一系列auto脚本来实现编译环境的初始化。
 
 
@@ -47,6 +50,7 @@ auto脚本由一系列脚本组成，他们有一些是实现一些通用功能�
 接下来，我们结合代码来分析下configure的原理:
 
 1)
+
 .. code:: c
 
     . auto/options
@@ -55,10 +59,10 @@ auto脚本由一系列脚本组成，他们有一些是实现一些通用功能�
 
 这是configure源码开始执行的前三行，依次交由auto目录下面的option、init、sources来处理。
 
-2)
-auto/options主是处理用户输入的configure选项，以及输出帮助信息等。读者可以结合nginx的源码来阅读本章内容。由于篇幅关系，这里大致列出此文件的结构：
+2) auto/options主是处理用户输入的configure选项，以及输出帮助信息等。读者可以结合nginx的源码来阅读本章内容。由于篇幅关系，这里大致列出此文件的结构：
 
 .. code:: c
+
     ##1. 设置选项对应的shell变量以及他们的初始值
     help=no
     NGX_PREFIX=
@@ -144,9 +148,11 @@ auto/options主是处理用户输入的configure选项，以及输出帮助信�
 上面的代码中，我们选用了文件中的部分代码进行了说明。大家可结合源码再进行分析。auto/options的目的主要是处理用户选项，并由选项生成一些全局变量的值，这些值在其它文件中会用到。该文件也会输出configure的帮助信息。
 
 3) auto/init
+
 该文件的目录在于初始化一些临时文件的路径，检查echo的兼容性，并创建Makefile。
 
 .. code:: c
+
     # 生成最终执行编译的makefile文件路径
     NGX_MAKEFILE=$NGX_OBJS/Makefile
     # 动态生成nginx模块列表的路径，由于nginx的的一些模块是可以选择编译的，而且可以添加自己的模块，所以模块列表是动态生成的
@@ -207,11 +213,13 @@ auto/options主是处理用户输入的configure选项，以及输出帮助信�
     END
 
 4) auto/sources
+
 该文件从文件名中就可以看出，它的主要功能是跟源文件相关的。它的主要作用是定义不同功能或系统所需要的文件的变量。根据功能，分为CORE/REGEX/EVENT/UNIX/FREEBSD/HTTP等。每一个功能将会由四个变量组成，"_MODULES"表示此功能相关的模块，最终会输出到ngx_modules.c文件中，即动态生成需要编译到nginx中的模块；"INCS"表示此功能依赖的源码目录，查找头文件的时候会用到，在编译选项中，会出现在"-I"中；”DEPS"显示指明在Makefile中需要依赖的文件名，即编译时，需要检查这些文件的更新时间；"SRCS"表示需要此功能编译需要的源文件。
 
 拿core来说：
 
 .. code:: c
+
     CORE_MODULES="ngx_core_module ngx_errlog_module ngx_conf_module ngx_emp_server_module ngx_emp_server_core_module"
 
     CORE_INCS="src/core"
