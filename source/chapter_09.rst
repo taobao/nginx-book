@@ -33,7 +33,7 @@ nginx的优秀除了体现在程序结构以及代码风格上，nginx的源码�
 
 
 
-nginx的configure原理
+nginx的configure原理(100%)
 ---------------------------
 
 nginx的编译旅程将从configure开始，configure脚本将根据我们输入的选项、系统环境参与来生成所需的文件（包含源文件与Makefile文件）。configure会调用一系列auto脚本来实现编译环境的初始化。
