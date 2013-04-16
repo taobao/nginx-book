@@ -1,10 +1,10 @@
-nginx架构详解
+nginx架构详解(30%)
 ===========================
 nginx的下篇将会更加深入的介绍nginx的实现原理。上一章，我们了解到了如何设计一个高性能服务器，那这一章将会开始讲解，nginx是如何一步一步实现高性能服务器的。
 
 
 
-nginx的源码目录结构
+nginx的源码目录结构(100%)
 ------------------------------
 
 nginx的优秀除了体现在程序结构以及代码风格上，nginx的源码组织也同样简洁明了，目录结构层次结构清晰，值得我们去学习。nginx的源码目录与nginx的模块化以及功能的划分是紧密结合，这也使得我们可以很方便地找到相关功能的代码。这节先介绍nginx源码的目录结构，先对nginx的源码有一个大致的认识，下节会讲解nginx如何编译。
@@ -45,11 +45,11 @@ auto脚本
 
 auto脚本由一系列脚本组成，他们有一些是实现一些通用功能由其它脚本来调用（如have），有一些则是完成一些特定的功能（如option）。脚本之间的主要执行顺序及调用关系如下图所示（由上到下，表示主流程的执行）：
 
-.. image:: http://tengine.taobao.org/book/_images/chapter-9-1.png
+.. image:: http://tengine.taobao.org/book/_images/chapter-9-1.jpg
 
 接下来，我们结合代码来分析下configure的原理:
 
-1)
+1) 初始化
 
 .. code:: c
 
@@ -312,8 +312,391 @@ auto脚本由一系列脚本组成，他们有一些是实现一些通用功能�
 
 从代码中，我们可以看到，这个工具的作用是，将$have变量的值，宏定义为1，并输出到auto_config文件中。通常我们通过这个工具来控制是否打开某个特性。这个工具在使用前，需要先定义宏的名称 ，即$have变量。
 
-6)
+6) 再回到configure文件中来：
 
+.. code:: c
+
+    # NGX_DEBUG是在auto/options文件中处理的，如果有--with-debug选项，则其值是YES
+    if [ $NGX_DEBUG = YES ]; then
+        # 当有debug选项时，会定义NGX_DEBUG宏
+        have=NGX_DEBUG . auto/have
+    fi
+
+这段代码中，可以看出，configure是如何定义一个特性的：通过宏定义，输出到config头文件中，然后在程序中可以判断这个宏是否有定义，来实现不同的特性。
+
+configure文件中继续向下：
+
+.. code:: c
+
+    # 编译器选项
+    . auto/cc/conf
+
+    # 头文件支持宏定义
+    if [ "$NGX_PLATFORM" != win32 ]; then
+        . auto/headers
+    fi
+
+    # 操作系统相关的配置的检测
+    . auto/os/conf
+
+    # unix体系下的通用配置检测
+    if [ "$NGX_PLATFORM" != win32 ]; then
+        . auto/unix
+    fi
+
+configure会依次调用其它几个文件，来进行环境的检测，包括编译器、操作系统相关。
+
+7) auto/feature
+
+nginx的configure会自动检测不同平台的特性，神奇之处就是auto/feature的实现，在继续向下分析之前，我们先来看看这个工具的实现原理。此工具的核心思想是，输出一小段代表性c程序，然后设置好编译选项，再进行编译连接运行，再对结果进行分析。例如，如果想检测某个库是否存在，就在小段c程序里面调用库里面的某个函数，再进行编译链接，如果出错，则表示库的环境不正常，如果编译成功，且运行正常，则库的环境检测正常。我们在写nginx第三方模块时，也常使用此工具来进行环境的检测，所以，此工具的作用贯穿整个configure过程。
+
+先看一小段使用例子：
+
+.. code:: c
+
+    ngx_feature="poll()"
+    ngx_feature_name=
+    ngx_feature_run=no
+    ngx_feature_incs="#include <poll.h>"
+    ngx_feature_path=
+    ngx_feature_libs=
+    ngx_feature_test="int  n; struct pollfd  pl;
+                      pl.fd = 0;
+                      pl.events = 0;
+                      pl.revents = 0;
+                      n = poll(&pl, 1, 0);
+                      if (n == -1) return 1"
+    . auto/feature
+
+    if [ $ngx_found = no ]; then
+        # 如果没有找到poll，就设置变量的值
+        EVENT_POLL=NONE
+    fi
+
+这段代码在auto/unix里面实现，用来检测当前操作系统是否支持poll函数调用。在调用auto/feature之前，需要先设置几个输入参数变量的值，然后结果会存在$ngx_found变量里面, 并输出宏定义以表示支持此特性:
+
+.. code:: c
+
+    $ngx_feature      特性名称
+    $ngx_feature_name 特性的宏定义名称，如果特性测试成功，则会定义该宏定义
+    $ngx_feature_path 编译时要查找头文件目录
+    $ngx_feature_test 要执行的测试代码
+    $ngx_feature_incs 在代码中要include的头文件
+    $ngx_feature_libs 编译时需要link的库文件选项
+    $ngx_feature_run  编译成功后，对二进制文件需要做的动作，可以是yes value bug 其它
+
+    #ngx_found 如果找到，并测试成功，其值为yes，否则其值为no
+
+看看ngx_feature的关键代码：
+
+.. code:: c
+
+    # 初始化输出结果为no
+    ngx_found=no
+
+    #将特性名称小写转换成大写
+    if test -n "$ngx_feature_name"; then
+        # 小写转大写
+        ngx_have_feature=`echo $ngx_feature_name \
+                       | tr abcdefghijklmnopqrstuvwxyz ABCDEFGHIJKLMNOPQRSTUVWXYZ`
+    fi
+
+    # 将所有include目录转换成编译选项
+    if test -n "$ngx_feature_path"; then
+        for ngx_temp in $ngx_feature_path; do
+            ngx_feature_inc_path="$ngx_feature_inc_path -I $ngx_temp"
+        done
+    fi
+
+
+    # 生成临时的小段c程序代码。
+    # $ngx_feature_incs变量是程序需要include的头文件
+    # $ngx_feature_test是测试代码
+    cat << END > $NGX_AUTOTEST.c
+
+    #include <sys/types.h>
+    $NGX_INCLUDE_UNISTD_H
+    $ngx_feature_incs
+
+    int main() {
+        $ngx_feature_test;
+        return 0;
+    }
+
+    END
+
+    # 编译命令
+    # 编译之后的目标文件是 $NGX_AUTOTEST，后面会判断这个文件是否存在来判断是否编译成功
+    ngx_test="$CC $CC_TEST_FLAGS $CC_AUX_FLAGS $ngx_feature_inc_path \
+          -o $NGX_AUTOTEST $NGX_AUTOTEST.c $NGX_TEST_LD_OPT $ngx_feature_libs"
+
+    # 执行编译过程
+    # 编译成功后，会生成$NGX_AUTOTEST命名的文件
+    eval "/bin/sh -c \"$ngx_test\" >> $NGX_AUTOCONF_ERR 2>&1"
+
+    # 如果文件存在，则编译成功
+    if [ -x $NGX_AUTOTEST ]; then
+
+        case "$ngx_feature_run" in
+
+            # 需要运行来判断是否支持特性
+            # 测试程序能否正常执行（即程序退出后的状态码是否是0），如果正常退出，则特性测试成功，设置ngx_found为yes，并添加名为ngx_feature_name的宏定义，宏的值为1
+            yes)
+                # 如果程序正常退出，退出码为0，则程序执行成功，我们可以在测试代码里面手动返回非0来表示程序出错
+                # /bin/sh is used to intercept "Killed" or "Abort trap" messages
+                if /bin/sh -c $NGX_AUTOTEST >> $NGX_AUTOCONF_ERR 2>&1; then
+                    echo " found"
+                    ngx_found=yes
+
+                    # 添加宏定义，宏的值为1
+                    if test -n "$ngx_feature_name"; then
+                        have=$ngx_have_feature . auto/have
+                    fi
+
+                else
+                    echo " found but is not working"
+                fi
+            ;;
+
+            # 需要运行程序来判断是否支持特性，如果支持，将程序标准输出的结果作为宏的值
+            value)
+            # /bin/sh is used to intercept "Killed" or "Abort trap" messages
+            if /bin/sh -c $NGX_AUTOTEST >> $NGX_AUTOCONF_ERR 2>&1; then
+                echo " found"
+                ngx_found=yes
+
+                # 与yes不一样的是，value会将程序从标准输出里面打印出来的值，设置为ngx_feature_name宏变量的值
+                # 在此种情况下，程序需要设置ngx_feature_name变量名
+                cat << END >> $NGX_AUTO_CONFIG_H
+
+    #ifndef $ngx_feature_name
+    #define $ngx_feature_name  `$NGX_AUTOTEST`
+    #endif
+
+    END
+                else
+                    echo " found but is not working"
+                fi
+            ;;
+
+            # 与yes正好相反
+            bug)
+                # /bin/sh is used to intercept "Killed" or "Abort trap" messages
+                if /bin/sh -c $NGX_AUTOTEST >> $NGX_AUTOCONF_ERR 2>&1; then
+                    echo " not found"
+
+                else
+                    echo " found"
+                    ngx_found=yes
+
+                    if test -n "$ngx_feature_name"; then
+                        have=$ngx_have_feature . auto/have
+                    fi
+                fi
+            ;;
+
+            # 不需要运行程序，最后定义宏变量
+            *)
+                echo " found"
+                ngx_found=yes
+
+                if test -n "$ngx_feature_name"; then
+                    have=$ngx_have_feature . auto/have
+                fi
+            ;;
+
+        esac
+    else
+        # 编译失败
+        echo " not found"
+
+        # 编译失败，会保存信息到日志文件中
+        echo "----------"    >> $NGX_AUTOCONF_ERR
+        # 保留编译文件的内容
+        cat $NGX_AUTOTEST.c  >> $NGX_AUTOCONF_ERR
+        echo "----------"    >> $NGX_AUTOCONF_ERR
+        # 保留编译文件的选项
+        echo $ngx_test       >> $NGX_AUTOCONF_ERR
+        echo "----------"    >> $NGX_AUTOCONF_ERR
+    fi
+
+    # 最后删除生成的临时文件
+    rm $NGX_AUTOTEST*
+
+8) auto/cc/conf
+
+在了解了工具auto/feature后，继续我们的主流程，auto/cc/conf的代码就很好理解了，这一步主要是检测编译器，并设置编译器相关的选项。它先调用auto/cc/name来得到编译器的名称，然后根据编译器选择执行不同的编译器相关的文件如gcc执行auto/cc/gcc来设置编译器相关的一些选项。
+
+9) auto/include
+
+这个工具用来检测是头文件是否支持。需要检测的头文件放在$ngx_include里面，如果支持，则$ngx_found变量的值为yes，并且会产生NGX_HAVE_{ngx_include}的宏定义。
+
+10) auto/headers
+
+生成头文件的宏定义。生成的定义放在objs/ngx_auto_headers.h里面：
+
+.. code:: c
+
+    #ifndef NGX_HAVE_UNISTD_H
+    #define NGX_HAVE_UNISTD_H  1
+    #endif
+
+
+    #ifndef NGX_HAVE_INTTYPES_H
+    #define NGX_HAVE_INTTYPES_H  1
+    #endif
+
+
+    #ifndef NGX_HAVE_LIMITS_H
+    #define NGX_HAVE_LIMITS_H  1
+    #endif
+
+
+    #ifndef NGX_HAVE_SYS_FILIO_H
+    #define NGX_HAVE_SYS_FILIO_H  1
+    #endif
+
+
+    #ifndef NGX_HAVE_SYS_PARAM_H
+    #define NGX_HAVE_SYS_PARAM_H  1
+    #endif
+
+11) auto/os/conf
+
+针对不同的操作系统平台特性的检测，并针对不同的操作系统，设置不同的CORE_INCS、CORE_DEPS、CORE_SRCS变量。nginx跨平台的支持就是在这个地方体现出来的。
+
+12) auto/unix
+
+针对unix体系的通用配置或系统调用的检测，如poll等事件处理系统调用的检测等。
+
+13) 回到configure里面
+
+.. code:: c
+
+    # 生成模块列表
+    . auto/modules
+    # 配置库的依赖
+    . auto/lib/conf
+
+14) auto/modules
+
+该脚本根据不同的条件，输出不同的模块列表，最后输出的模块列表的文件在objs/ngx_modules.c：
+
+.. code:: c
+
+    #include <ngx_config.h>
+    #include <ngx_core.h>
+
+
+    extern ngx_module_t  ngx_core_module;
+    extern ngx_module_t  ngx_errlog_module;
+    extern ngx_module_t  ngx_conf_module;
+    extern ngx_module_t  ngx_emp_server_module;
+
+    ...
+
+
+    ngx_module_t *ngx_modules[] = {
+        &ngx_core_module,
+        &ngx_errlog_module,
+        &ngx_conf_module,
+        &ngx_emp_server_module,
+        ...
+        NULL
+    };
+
+这个文件会决定所有模块的顺序，这会直接影响到最后的功能，下一小节我们将讨论模块间的顺序。这个文件会加载我们的第三方模块，这也是我们值得关注的地方：
+
+.. code:: c
+
+    if test -n "$NGX_ADDONS"; then
+
+        echo configuring additional modules
+
+        for ngx_addon_dir in $NGX_ADDONS
+        do
+            echo "adding module in $ngx_addon_dir"
+
+            if test -f $ngx_addon_dir/config; then
+                # 执行第三方模块的配置
+                . $ngx_addon_dir/config
+
+                echo " + $ngx_addon_name was configured"
+
+            else
+                echo "$0: error: no $ngx_addon_dir/config was found"
+                exit 1
+            fi
+        done
+    fi
+
+这段代码比较简单，确实现了nginx很强大的扩展性，加载第三方模块。$ngx_addon_dir变量是在configure执行时，命令行参数--add-module加入的，它是一个目录列表，每一个目录，表示一个第三方模块。从代码中，我们可以看到，它就是针对每一个第三方模块执行其目录下的config文件。于是我们可以在config文件里面执行我们自己的检测逻辑，比如检测库依赖，添加编译选项等。
+
+15) auto/lib/conf
+
+该文件会针对nginx编译所需要的基础库的检测，比如rewrite模块需要的PCRE库的检测支持。
+
+16) configure接下来定义一些宏常量，主要是是文件路径方面的：
+
+.. code:: c
+
+    case ".$NGX_PREFIX" in
+        .)
+            NGX_PREFIX=${NGX_PREFIX:-/usr/local/nginx}
+            have=NGX_PREFIX value="\"$NGX_PREFIX/\"" . auto/define
+        ;;
+
+        .!)
+            NGX_PREFIX=
+        ;;
+
+        *)
+            have=NGX_PREFIX value="\"$NGX_PREFIX/\"" . auto/define
+        ;;
+    esac
+
+    if [ ".$NGX_CONF_PREFIX" != "." ]; then
+        have=NGX_CONF_PREFIX value="\"$NGX_CONF_PREFIX/\"" . auto/define
+    fi
+
+    have=NGX_SBIN_PATH value="\"$NGX_SBIN_PATH\"" . auto/define
+    have=NGX_CONF_PATH value="\"$NGX_CONF_PATH\"" . auto/define
+    have=NGX_PID_PATH value="\"$NGX_PID_PATH\"" . auto/define
+    have=NGX_LOCK_PATH value="\"$NGX_LOCK_PATH\"" . auto/define
+    have=NGX_ERROR_LOG_PATH value="\"$NGX_ERROR_LOG_PATH\"" . auto/define
+
+    have=NGX_HTTP_LOG_PATH value="\"$NGX_HTTP_LOG_PATH\"" . auto/define
+    have=NGX_HTTP_CLIENT_TEMP_PATH value="\"$NGX_HTTP_CLIENT_TEMP_PATH\""
+    . auto/define
+    have=NGX_HTTP_PROXY_TEMP_PATH value="\"$NGX_HTTP_PROXY_TEMP_PATH\""
+    . auto/define
+    have=NGX_HTTP_FASTCGI_TEMP_PATH value="\"$NGX_HTTP_FASTCGI_TEMP_PATH\""
+    . auto/define
+    have=NGX_HTTP_UWSGI_TEMP_PATH value="\"$NGX_HTTP_UWSGI_TEMP_PATH\""
+    . auto/define
+    have=NGX_HTTP_SCGI_TEMP_PATH value="\"$NGX_HTTP_SCGI_TEMP_PATH\""
+    . auto/define
+
+17) configure最后的工作，生成编译安装的makefile
+
+.. code:: c
+
+    # 生成objs/makefile文件
+    . auto/make
+
+    # 生成关于库的编译选项到makefile文件
+    . auto/lib/make
+    # 生成与安装相关的makefile文件内容，并生成最外层的makefile文件
+    . auto/install
+
+    # STUB
+    . auto/stubs
+
+    have=NGX_USER value="\"$NGX_USER\"" . auto/define
+    have=NGX_GROUP value="\"$NGX_GROUP\"" . auto/define
+
+    # 编译的最后阶段，汇总信息
+    . auto/summary
 
 
 模块编译顺序
