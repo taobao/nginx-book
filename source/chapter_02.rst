@@ -223,7 +223,7 @@ ngx_str_t(100%)
 
     ngx_str_t str, str1;
     str = ngx_string("hello world");    // 编译出错
-    str1 = ngx_null_string();                // 编译出错
+    str1 = ngx_null_string;                // 编译出错
 
 这种情况，可以调用ngx_str_set与ngx_str_null这两个函数来做:
 
