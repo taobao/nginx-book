@@ -258,26 +258,26 @@ ngx_str_t(100%)
 
     ngx_strncmp(s1, s2, n)
 
-不区分大小写的字符串比较，只比较前n个字符。
+区分大小写的字符串比较，只比较前n个字符。
 
 
 .. code:: c
 
     ngx_strcmp(s1, s2)
 
-不区分大小写的不带长度的字符串比较。
+区分大小写的不带长度的字符串比较。
 
 .. code:: c
 
     ngx_int_t ngx_strcasecmp(u_char *s1, u_char *s2);
 
-区分大小写的不带长度的字符串比较。
+不区分大小写的不带长度的字符串比较。
 
 .. code:: c
 
     ngx_int_t ngx_strncasecmp(u_char *s1, u_char *s2, size_t n);
 
-区分大小写的带长度的字符串比较，只比较前n个字符。
+不区分大小写的带长度的字符串比较，只比较前n个字符。
 
 .. code:: c
 
