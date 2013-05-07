@@ -233,7 +233,7 @@ ngx_str_t(100%)
     ngx_str_set(&str, "hello world");    
     ngx_str_null(&str1);
 
-不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误。如： 
+不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误(因为ngx_str_set内部使用了sizeof()，如果传入的是u_char*，那么计算的是这个指针的长度，而不是字符串的长度)。如： 
 
 .. code:: c
 
