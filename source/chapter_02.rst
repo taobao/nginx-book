@@ -1352,17 +1352,17 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 
 当nginx读取到一个HTTP Request的header的时候，nginx首先查找与这个请求关联的虚拟主机的配置。如果找到了这个虚拟主机的配置，那么通常情况下，这个HTTP Request将会经过以下几个阶段的处理（phase handlers）：
 
-:NGX_HTTP_POST_READ_PHASE:	读取请求内容阶段
-:NGX_HTTP_SERVER_REWRITE_PHASE:	Server请求地址重写阶段
-:NGX_HTTP_FIND_CONFIG_PHASE:	配置查找阶段:
-:NGX_HTTP_REWRITE_PHASE:	Location请求地址重写阶段
-:NGX_HTTP_POST_REWRITE_PHASE:	请求地址重写提交阶段
-:NGX_HTTP_PREACCESS_PHASE:	访问权限检查准备阶段
-:NGX_HTTP_ACCESS_PHASE:	访问权限检查阶段
-:NGX_HTTP_POST_ACCESS_PHASE:	访问权限检查提交阶段
-:NGX_HTTP_TRY_FILES_PHASE:	配置项try_files处理阶段  
-:NGX_HTTP_CONTENT_PHASE:	内容产生阶段
-:NGX_HTTP_LOG_PHASE:	日志模块处理阶段
+:NGX_HTTP_POST_READ_PHASE:      读取请求内容阶段
+:NGX_HTTP_SERVER_REWRITE_PHASE: Server请求地址重写阶段
+:NGX_HTTP_FIND_CONFIG_PHASE:    配置查找阶段:
+:NGX_HTTP_REWRITE_PHASE:        Location请求地址重写阶段
+:NGX_HTTP_POST_REWRITE_PHASE:   请求地址重写提交阶段
+:NGX_HTTP_PREACCESS_PHASE:      访问权限检查准备阶段
+:NGX_HTTP_ACCESS_PHASE: 访问权限检查阶段
+:NGX_HTTP_POST_ACCESS_PHASE:    访问权限检查提交阶段
+:NGX_HTTP_TRY_FILES_PHASE:      配置项try_files处理阶段  
+:NGX_HTTP_CONTENT_PHASE:        内容产生阶段
+:NGX_HTTP_LOG_PHASE:    日志模块处理阶段
 
 
 在内容产生阶段，为了给一个request产生正确的响应，nginx必须把这个request交给一个合适的content handler去处理。如果这个request对应的location在配置文件中被明确指定了一个content handler，那么nginx就可以通过对location的匹配，直接找到这个对应的handler，并把这个request交给这个content handler去处理。这样的配置指令包括像，perl，flv，proxy_pass，mp4等。
