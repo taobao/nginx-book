@@ -13,6 +13,9 @@ Nginx里内存的使用大都十分有特色:申请了永久保存,抑或伴随�
 
 所以在Nginx使用内存池时总是只申请,不释放,使用完毕后直接destroy整个内存池.我们来看下内存池相关的实现。
 
+结构:
+~~~~~~~~~~~~
+
 .. code:: c
     struct ngx_pool_s {
         ngx_pool_data_t       d;
@@ -36,7 +39,11 @@ Nginx里内存的使用大都十分有特色:申请了永久保存,抑或伴随�
         ngx_uint_t            failed;
     } ngx_pool_data_t;
 
-结构:
+.. image:: https://raw.github.com/yzprofile/nginx-book/master/source/images/chapter-10-1.PNG
+    :alt: 内存池
+    :align: center
+
+实现:
 ~~~~~~~~~~~~
 
 这三个数据结构构成了基本的内存池的主体.通过ngx_create_pool可以创建一个内存池,通过ngx_palloc可以从内存池中分配指定大小的内存。
@@ -112,20 +119,20 @@ Nginx里内存的使用大都十分有特色:申请了永久保存,抑或伴随�
     ngx_pnalloc(ngx_pool_t *pool, size_t size)
     {
         u_char      *m;
-	ngx_pool_t  *p;
+        ngx_pool_t  *p;
 
-	if (size <= pool->max) {
+        if (size <= pool->max) {
 
-	    p = pool->current;
+            p = pool->current;
 
-	    do {
-	        m = p->d.last;
+            do {
+                m = p->d.last;
 
-		if ((size_t) (p->d.end - m) >= size) {
-		    p->d.last = m + size;
+                if ((size_t) (p->d.end - m) >= size) {
+                    p->d.last = m + size;
 
-		    return m;
-		}
+                    return m;
+                }
 
                 p = p->d.next;
 
@@ -155,9 +162,41 @@ ngx_pcalloc其只是ngx_palloc的一个封装，将申请到的内存全部初�
 
 ngx_palloc相对ngx_pnalloc，其会将申请的内存大小向上扩增到NGX_ALIGNMENT的倍数，以方便内存对齐，减少内存访问次数。
 
-.. image:: https://raw.github.com/yzprofile/nginx-book/master/source/images/chapter-10-1.PNG
-    :alt: 内存池
-    :align: center
+Nginx的内存池不仅用于内存方面的管理，还可以通过`ngx_pool_cleanup_add`来添加内存池释放时的回调函数，以便用来释放自己申请的其他相关资源。
+
+.. code:: c
+    ngx_pool_cleanup_t *
+    ngx_pool_cleanup_add(ngx_pool_t *p, size_t size)
+    {
+        ngx_pool_cleanup_t  *c;
+
+        c = ngx_palloc(p, sizeof(ngx_pool_cleanup_t));
+        if (c == NULL) {
+            return NULL;
+        }
+
+        if (size) {
+            c->data = ngx_palloc(p, size);
+            if (c->data == NULL) {
+                return NULL;
+            }
+
+        } else {
+            c->data = NULL;
+        }
+
+        c->handler = NULL;
+        c->next = p->cleanup;
+
+        p->cleanup = c;
+
+        ngx_log_debug1(NGX_LOG_DEBUG_ALLOC, p->log, 0, "add cleanup: %p", c);
+
+        return c;
+    }
+
+
+从代码中可以看出，这些由自己添加的释放回调是以链表形式保存的，也就是说你可以添加多个回调函数来管理不同的资源。
 
 
 共享内存
@@ -222,6 +261,3 @@ aio原理
 
 log机制
 ---------------
-
-
-
