@@ -139,7 +139,7 @@ http请求是典型的请求-响应类型的的网络协议，而http是文件�
 
 keepalive
 ^^^^^^^^^^^^^^^^^
-当然，在nginx中，对于http1.0与http1.1也是支持长连接的。什么是长连接呢？我们知道，http请求是某于TCP协议之上的，那么，当客户端在发起请求前，需要先与服务端建立TCP连接，而每一次的TCP连接是需要三次握手来确定的，如果客户端与服务端之间网络差一点，这三次交互消费的时间会比较多，而且三次交互也会带来网络流量。当然，当连接断开后，也会有四次的交互，当然对用户体验来说就不重要了。而http请求是请求应答式的，如果我们能知道每个请求头与响应体的长度，那么我们是可以在一个连接上面执行多个请求的，这就是所谓的长连接，但前提条件是我们先得确定请求头与响应体的长度。对于请求来说，如果当前请求需要有body，如POST请求，那么nginx就需要客户端在请求头中指定content-length来表明body的大小，否则返回400错误。也就是说，请求体的长度是确定的，那么响应体的长度呢？先来看看http协议中关于响应body长度的确定：
+当然，在nginx中，对于http1.0与http1.1也是支持长连接的。什么是长连接呢？我们知道，http请求是基于TCP协议之上的，那么，当客户端在发起请求前，需要先与服务端建立TCP连接，而每一次的TCP连接是需要三次握手来确定的，如果客户端与服务端之间网络差一点，这三次交互消费的时间会比较多，而且三次交互也会带来网络流量。当然，当连接断开后，也会有四次的交互，当然对用户体验来说就不重要了。而http请求是请求应答式的，如果我们能知道每个请求头与响应体的长度，那么我们是可以在一个连接上面执行多个请求的，这就是所谓的长连接，但前提条件是我们先得确定请求头与响应体的长度。对于请求来说，如果当前请求需要有body，如POST请求，那么nginx就需要客户端在请求头中指定content-length来表明body的大小，否则返回400错误。也就是说，请求体的长度是确定的，那么响应体的长度呢？先来看看http协议中关于响应body长度的确定：
 
 1. 对于http1.0协议来说，如果响应头中有content-length头，则以content-length的长度就可以知道body的长度了，客户端在接收body时，就可以依照这个长度来接收数据，接收完后，就表示这个请求完成了。而如果没有content-length头，则客户端会一直接收数据，直到服务端主动断开连接，才表示body接收完了。
 
@@ -223,7 +223,7 @@ ngx_str_t(100%)
 
     ngx_str_t str, str1;
     str = ngx_string("hello world");    // 编译出错
-    str1 = ngx_null_string();                // 编译出错
+    str1 = ngx_null_string;                // 编译出错
 
 这种情况，可以调用ngx_str_set与ngx_str_null这两个函数来做:
 
@@ -233,7 +233,7 @@ ngx_str_t(100%)
     ngx_str_set(&str, "hello world");    
     ngx_str_null(&str1);
 
-不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误。如： 
+不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误(因为ngx_str_set内部使用了sizeof()，如果传入的是u_char*，那么计算的是这个指针的长度，而不是字符串的长度)。如： 
 
 .. code:: c
 
@@ -258,26 +258,26 @@ ngx_str_t(100%)
 
     ngx_strncmp(s1, s2, n)
 
-不区分大小写的字符串比较，只比较前n个字符。
+区分大小写的字符串比较，只比较前n个字符。
 
 
 .. code:: c
 
     ngx_strcmp(s1, s2)
 
-不区分大小写的不带长度的字符串比较。
+区分大小写的不带长度的字符串比较。
 
 .. code:: c
 
     ngx_int_t ngx_strcasecmp(u_char *s1, u_char *s2);
 
-区分大小写的不带长度的字符串比较。
+不区分大小写的不带长度的字符串比较。
 
 .. code:: c
 
     ngx_int_t ngx_strncasecmp(u_char *s1, u_char *s2, size_t n);
 
-区分大小写的带长度的字符串比较，只比较前n个字符。
+不区分大小写的带长度的字符串比较，只比较前n个字符。
 
 .. code:: c
 
@@ -1328,7 +1328,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 
 为了让大家更好的了解nginx中请求处理过程，我们以HTTP Request为例，来做一下详细地说明。
 
-从nginx的内部来看，一个HTTP Request的处理过程设计到一下几个阶段。
+从nginx的内部来看，一个HTTP Request的处理过程涉及到一下几个阶段。
 
 #) 初始化HTTP Request（读取来自客户端的数据，生成HTTP Requst对象，该对象含有该请求所有的信息）。
 #) 处理请求头。
@@ -1352,17 +1352,17 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 
 当nginx读取到一个HTTP Request的header的时候，nginx首先查找与这个请求关联的虚拟主机的配置。如果找到了这个虚拟主机的配置，那么通常情况下，这个HTTP Request将会经过以下几个阶段的处理（phase handlers）：
 
-:NGX_HTTP_POST_READ_PHASE:	读取请求内容阶段
-:NGX_HTTP_SERVER_REWRITE_PHASE:	Server请求地址重写阶段
-:NGX_HTTP_FIND_CONFIG_PHASE:	配置查找阶段:
-:NGX_HTTP_REWRITE_PHASE:	Location请求地址重写阶段
-:NGX_HTTP_POST_REWRITE_PHASE:	请求地址重写提交阶段
-:NGX_HTTP_PREACCESS_PHASE:	访问权限检查准备阶段
-:NGX_HTTP_ACCESS_PHASE:	访问权限检查阶段
-:NGX_HTTP_POST_ACCESS_PHASE:	访问权限检查提交阶段
-:NGX_HTTP_TRY_FILES_PHASE:	配置项try_files处理阶段  
-:NGX_HTTP_CONTENT_PHASE:	内容产生阶段
-:NGX_HTTP_LOG_PHASE:	日志模块处理阶段
+:NGX_HTTP_POST_READ_PHASE:      读取请求内容阶段
+:NGX_HTTP_SERVER_REWRITE_PHASE: Server请求地址重写阶段
+:NGX_HTTP_FIND_CONFIG_PHASE:    配置查找阶段:
+:NGX_HTTP_REWRITE_PHASE:        Location请求地址重写阶段
+:NGX_HTTP_POST_REWRITE_PHASE:   请求地址重写提交阶段
+:NGX_HTTP_PREACCESS_PHASE:      访问权限检查准备阶段
+:NGX_HTTP_ACCESS_PHASE: 访问权限检查阶段
+:NGX_HTTP_POST_ACCESS_PHASE:    访问权限检查提交阶段
+:NGX_HTTP_TRY_FILES_PHASE:      配置项try_files处理阶段  
+:NGX_HTTP_CONTENT_PHASE:        内容产生阶段
+:NGX_HTTP_LOG_PHASE:    日志模块处理阶段
 
 
 在内容产生阶段，为了给一个request产生正确的响应，nginx必须把这个request交给一个合适的content handler去处理。如果这个request对应的location在配置文件中被明确指定了一个content handler，那么nginx就可以通过对location的匹配，直接找到这个对应的handler，并把这个request交给这个content handler去处理。这样的配置指令包括像，perl，flv，proxy_pass，mp4等。
