@@ -726,7 +726,8 @@ config文件的编写
 ./configure --prefix=/usr/local/nginx-1.3.1 --add-module=/home/jizhao/open_source/book_module
 
 我写的这个示例模块的代码和config文件都放在/home/jizhao/open_source/book_module这个目录下。所以一切都很明了，也没什么好说的了。
-
+(在这里在make的时候也许会出现(ngx_http_hello_module.c:200:29: error: variable ‘clcf’ set but not used [-Werror=unused-but-set-variable]
+)错误,只需要到objs文件夹下打开Makefile, 修改CFLAGS,去掉-Werror就可以了)
 
 使用
 ~~~~~~~~~~~~~~~~~~
