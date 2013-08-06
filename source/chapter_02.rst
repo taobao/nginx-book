@@ -187,37 +187,37 @@ ngx_str_t(100%)
 
 .. code:: c
 
-    ngx_string(str)
+    #define ngx_string(str)     { sizeof(str) - 1, (u_char *) str }
 
-通过一个以'\\0'结尾的普通字符串str构造一个nginx的字符串。鉴于api中采用sizeof操作符计算字符串长度，因此该api的参数必须是一个常量字符串。
-
-.. code:: c
-
-    ngx_null_string
-
-声明变量时，初始化字符串为空字符串，符串的长度为0，data为NULL。
+ngx_string(str)是一个宏，它通过一个以'\\0'结尾的普通字符串str构造一个nginx的字符串，鉴于其中采用sizeof操作符计算字符串长度，因此参数必须是一个常量字符串。
 
 .. code:: c
 
-    ngx_str_set(&str, text)
+    #define ngx_null_string     { 0, NULL }
 
-设置字符串str为text，text必须为常量字符串。
+定义变量时，使用ngx_null_string初始化字符串为空字符串，符串的长度为0，data为NULL。
 
 .. code:: c
 
-    ngx_str_null(&str) 
+    #define ngx_str_set(str, text)                                               \
+        (str)->len = sizeof(text) - 1; (str)->data = (u_char *) text
 
-设置字符串str为空串，长度为0，data为NULL。
+ngx_str_set用于设置字符串str为text，由于使用sizeof计算长度，故text必须为常量字符串。
 
-上面这四个函数，使用时一定要小心，ngx_string与ngx_null_string只能用于赋值时初始化，如：
+.. code:: c
+
+    #define ngx_str_null(str)   (str)->len = 0; (str)->data = NULL
+
+ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
+
+上面这四个函数，使用时一定要小心，ngx_string与ngx_null_string是“{*，*}”格式的，故只能用于赋值时初始化，如：
 
 .. code:: c
 
     ngx_str_t str = ngx_string("hello world");
     ngx_str_t str1 = ngx_null_string();
 
-如果这样使用，就会有问题，这里涉及到c语言中对结构体变量赋值操作的语法规则，在此不做介绍。
-
+如果向下面这样使用，就会有问题，这里涉及到c语言中对结构体变量赋值操作的语法规则，在此不做介绍。
 
 .. code:: c
 
@@ -240,6 +240,16 @@ ngx_str_t(100%)
    ngx_str_t str;
    u_char *a = "hello world";
    ngx_str_set(&str, a);    // 问题产生
+
+此外，值得注意的是，由于ngx_str_set与ngx_str_null实际上是两行语句，故在if/for/while等语句中单独使用需要用花括号括起来，例如：
+
+.. code:: c
+
+   ngx_str_t str;
+   if (cond)
+      ngx_str_set(&str, "true");     // 问题产生
+   else
+      ngx_str_set(&str, "false");    // 问题产生
 
 
 .. code:: c
