@@ -853,6 +853,8 @@ nginx的filter模块在处理从别的filter模块或者是handler模块传递�
 
 .. code:: c
 
+    typedef struct ngx_chain_s       ngx_chain_t;
+
     struct ngx_chain_s {
         ngx_buf_t    *buf;
         ngx_chain_t  *next;
