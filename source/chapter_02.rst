@@ -54,12 +54,12 @@ nginx在启动后，在unix系统中会以daemon的方式在后台运行，后�
         nevents = poll_function(events, timeout);
         for i in nevents:
             task t;
-        if (events[i].type == READ) {
-            t.handler = read_handler;
-        } else (events[i].type == WRITE) {
-            t.handler = write_handler;
-        }
-        run_tasks_add(t);
+            if (events[i].type == READ) {
+                t.handler = read_handler;
+            } else (events[i].type == WRITE) {
+                t.handler = write_handler;
+            }
+            run_tasks_add(t);
     }
 
 好，本节我们讲了进程模型，事件模型，包括网络事件，信号，定时器事件。
