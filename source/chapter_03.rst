@@ -290,6 +290,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 我们先来看下ngx_module_t的定义
 
 .. code:: c
+
     typedef struct ngx_module_s      ngx_module_t;
     struct ngx_module_s {
         ngx_uint_t            ctx_index;
