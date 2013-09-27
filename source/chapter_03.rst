@@ -4,12 +4,13 @@ handler模块(100%)
 handler模块简介
 -----------------------
 
-相信大家在看了前一章的模块概述以后，都对nginx的模块有了一个基本的认识。基本上作为第三方开发者最可能开发的就是三种类型的模块，即handler，filter和load-balancer。Handler模块就是接受来自客户端的请求并产生输出的模块。至于有些地方说的upstream模块则实际上也是一种handler。只不过它产生的内容来自于从后端服务器获取的，而非在本机产生的。
+相信大家在看了前一章的模块概述以后，都对nginx的模块有了一个基本的认识。基本上作为第三方开发者最可能开发的就是三种类型的模块，即handler，filter和load-balancer。Handler模块就是接受来自客户端的请求并产生输出的模块。有些地方说upstream模块实际上也是一种handler模块，只不过它产生的内容来自于从后端服务器获取的，而非在本机产生的。
 
-当Nginx系统启动的时候，每个handler都有一次机会把自己关联到一个在配置文件中使用location指令配置的一个location上。如果有多个handler模块都去关联同一个location，那么实际上只有一个handler模块真正会起作用。当然大多数情况下，模块开发人员都会避免出现这种情况。
+在上一章提到，配置文件中使用location指令可以配置content handler模块，当Nginx系统启动的时候，每个handler模块都有一次机会把自己关联到对应的location上。如果有多个handler模块都关联了同一个location，那么实际上只有一个handler模块真正会起作用。当然大多数情况下，模块开发人员都会避免出现这种情况。
 
-一个handler处理的结果通常有三种情况。处理成功，处理失败（处理的时候发生了错误）或者是拒绝去处理。在拒绝处理的情况下，这个location的处理就会由默认的handler来进行处理。例如，当在请求一个静态文件的时候，如果你关联一个handler到这个location上，但是拒绝处理，就会由默认的ngx_http_static_module模块进行处理，该模块是一个典型的handler。
+handler模块处理的结果通常有三种情况: 处理成功，处理失败（处理的时候发生了错误）或者是拒绝去处理。在拒绝处理的情况下，这个location的处理就会由默认的handler模块来进行处理。例如，当请求一个静态文件的时候，如果关联到这个location上的一个handler模块拒绝处理，就会由默认的ngx_http_static_module模块进行处理，该模块是一个典型的handler模块。
 
+本章主要讲述的是如何编写handler模块，在研究handler模块编写之前先来了解一下模块的一些基本数据结构。
 
 模块的基本结构
 -----------------------
@@ -22,7 +23,7 @@ handler模块简介
 
 基本上每个模块都会提供一些配置指令，以便于用户可以通过配置来控制该模块的行为。那么这些配置信息怎么存储呢？那就需要定义该模块的配置结构来进行存储。
 
-大家都知道Nginx的配置信息分成了几个scope，这就是main, server, 以及location。同样的每个模块提供的配置指令也可以出现在这几个scope里。那对于这三个scope的配置信息，每个模块就需要定义三个不同的数据结构去进行存储。当然，不是每个模块都会在这三个scope都提供配置指令的。那么也就不一定每个模块都需要定义三个数据结构去存储这些配置信息了。视模块的实现而言，需要几个就定义几个。
+大家都知道Nginx的配置信息分成了几个作用域(scope,有时也称作上下文)，这就是main, server, 以及location。同样的每个模块提供的配置指令也可以出现在这几个作用域里。那对于这三个作用域的配置信息，每个模块就需要定义三个不同的数据结构去进行存储。当然，不是每个模块都会在这三个作用域都提供配置指令的。那么也就不一定每个模块都需要定义三个数据结构去存储这些配置信息了。视模块的实现而言，需要几个就定义几个。
 
 有一点需要特别注意的就是，在模块的开发过程中，我们最好使用nginx原有的命名习惯。这样跟原代码的契合度更高，看起来也更舒服。
 
@@ -212,15 +213,15 @@ ngx_command_t的定义，位于src/core/ngx_conf_file.h中。
 
 :create_srv_conf: 调用该函数创建本模块位于http server block的配置信息存储结构，每个server block会创建一个。该函数成功的时候，返回创建的配置对象。失败的话，返回NULL。
 
-:merge_srv_conf: 因为有些配置指令即可以出现在http block，也可以出现在http server block中。那么遇到这种情况，每个server都会有自己存储结构来存储该server的配置，但是在这种情况下当在http block中的配置与server block中的配置信息冲突的时候，就需要调用此函数进行合并，该函数并非必须提供，当预计到绝对不会发生需要合并的情况的时候，就无需提供。当然为了安全期间还是建议提供。该函数成功的时候，返回NGX_CONF_OK。失败的话，返回NGX_CONF_ERROR或错误字符串。
+:merge_srv_conf: 因为有些配置指令既可以出现在http block，也可以出现在http server block中。那么遇到这种情况，每个server都会有自己存储结构来存储该server的配置，但是在这种情况下http block中的配置与server block中的配置信息发生冲突的时候，就需要调用此函数进行合并，该函数并非必须提供，当预计到绝对不会发生需要合并的情况的时候，就无需提供。当然为了安全起见还是建议提供。该函数执行成功的时候，返回NGX_CONF_OK。失败的话，返回NGX_CONF_ERROR或错误字符串。
 
-:create_loc_conf: 调用该函数创建本模块位于location block的配置信息存储结构。每个在配置中指明的location创建一个。该函数成功的时候，返回创建的配置对象。失败的话，返回NULL。
+:create_loc_conf: 调用该函数创建本模块位于location block的配置信息存储结构。每个在配置中指明的location创建一个。该函数执行成功，返回创建的配置对象。失败的话，返回NULL。
 
 :merge_loc_conf: 与merge_srv_conf类似，这个也是进行配置值合并的地方。该函数成功的时候，返回NGX_CONF_OK。失败的话，返回NGX_CONF_ERROR或错误字符串。
 
-Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个location的话，对于同一个配置，如果自己这里没有定义，那么就使用上层的配置，否则是用自己的配置。
+Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个location的话，对于同一个配置，如果当前层次没有定义，那么就使用上层的配置，否则使用当前层次的配置。
 
-这些配置信息一般默认都应该设为一个未初始化的值，针对这个需求，Nginx定义了一系列的宏定义来代表个中配置所对应数据类型的未初始化值，如下：
+这些配置信息一般默认都应该设为一个未初始化的值，针对这个需求，Nginx定义了一系列的宏定义来代表各种配置所对应数据类型的未初始化值，如下：
 
 .. code:: c
 
@@ -276,7 +277,7 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
     };
 
 
-**注意：这里并没有提供merge_loc_conf函数，因为我们这个模块的配置指令已经确定只出现在NGX_HTTP_LOC_CONF中这一个level上，不会发生需要合并的情况。**
+**注意：这里并没有提供merge_loc_conf函数，因为我们这个模块的配置指令已经确定只出现在NGX_HTTP_LOC_CONF中这一个层次上，不会发生需要合并的情况。**
 
 
 
@@ -286,7 +287,47 @@ Nginx里面的配置信息都是上下一层层的嵌套的，对于具体某个
 
 对于开发一个模块来说，我们都需要定义一个ngx_module_t类型的变量来说明这个模块本身的信息，从某种意义上来说，这是这个模块最重要的一个信息，它告诉了nginx这个模块的一些信息，上面定义的配置信息，还有模块上下文信息，都是通过这个结构来告诉nginx系统的，也就是加载模块的上层代码，都需要通过定义的这个结构，来获取这些信息。
 
-我们来看一下hello模块的模块定义。
+我们先来看下ngx_module_t的定义
+
+.. code:: c
+
+    typedef struct ngx_module_s      ngx_module_t;
+    struct ngx_module_s {
+        ngx_uint_t            ctx_index;
+        ngx_uint_t            index;
+        ngx_uint_t            spare0;
+        ngx_uint_t            spare1;
+        ngx_uint_t            abi_compatibility;
+        ngx_uint_t            major_version;
+        ngx_uint_t            minor_version;
+        void                 *ctx;
+        ngx_command_t        *commands;
+        ngx_uint_t            type;
+        ngx_int_t           (*init_master)(ngx_log_t *log);
+        ngx_int_t           (*init_module)(ngx_cycle_t *cycle);
+        ngx_int_t           (*init_process)(ngx_cycle_t *cycle);
+        ngx_int_t           (*init_thread)(ngx_cycle_t *cycle);
+        void                (*exit_thread)(ngx_cycle_t *cycle);
+        void                (*exit_process)(ngx_cycle_t *cycle);
+        void                (*exit_master)(ngx_cycle_t *cycle);
+        uintptr_t             spare_hook0;
+        uintptr_t             spare_hook1;
+        uintptr_t             spare_hook2;
+        uintptr_t             spare_hook3;
+        uintptr_t             spare_hook4;
+        uintptr_t             spare_hook5;
+        uintptr_t             spare_hook6;
+        uintptr_t             spare_hook7;
+    };
+
+    #define NGX_NUMBER_MAJOR  3
+    #define NGX_NUMBER_MINOR  1
+    #define NGX_MODULE_V1          0, 0, 0, 0,                              \
+        NGX_DSO_ABI_COMPATIBILITY, NGX_NUMBER_MAJOR, NGX_NUMBER_MINOR
+    #define NGX_MODULE_V1_PADDING  0, 0, 0, 0, 0, 0, 0, 0
+
+
+再看一下hello模块的模块定义。
 
 .. code:: c
 
@@ -329,6 +370,7 @@ r是http请求。里面包含请求所有的信息，这里不详细说明了，
 handler模块的挂载
 -----------------------
 
+handler模块真正的处理函数通过两种方式挂载到处理过程中，一种方式就是按处理阶段挂载;另外一种挂载方式就是按需挂载。
 
 按处理阶段挂载
 ~~~~~~~~~~~~~~~~~~
@@ -348,7 +390,7 @@ handler模块的挂载
 :NGX_HTTP_LOG_PHASE:	日志模块处理阶段
 
 
-一般情况下，我们自定义的模块，大多数是挂载在NGX_HTTP_CONTENT_PHASE阶段的。挂载的动作一般是现在模块上下文调用的postconfiguration函数中。
+一般情况下，我们自定义的模块，大多数是挂载在NGX_HTTP_CONTENT_PHASE阶段的。挂载的动作一般是在模块上下文调用的postconfiguration函数中。
 
 **注意：有几个阶段是特例，它不调用挂载地任何的handler，也就是你就不用挂载到这几个阶段了：**
 
@@ -391,15 +433,15 @@ handler模块的挂载
 
 以这种方式挂载的handler也被称为 **content handler**。
 
-一个请求进来以后，nginx按照从NGX_HTTP_POST_READ_PHASE开始的阶段，去依次执行每个阶段的所有handler。等到执行到 NGX_HTTP_CONTENT_PHASE阶段的时候，如果这个location对应的有一个content handler，那么就去执行这个content handler。否则去依次执行NGX_HTTP_CONTENT_PHASE阶段挂载的所有content phase handlers，直到某个函数处理返回NGX_OK或者NGX_ERROR。
+当一个请求进来以后，nginx从NGX_HTTP_POST_READ_PHASE阶段开始依次执行每个阶段中所有handler。执行到 NGX_HTTP_CONTENT_PHASE阶段的时候，如果这个location有一个对应的content handler模块，那么就去执行这个content handler模块真正的处理函数。否则继续依次执行NGX_HTTP_CONTENT_PHASE阶段中所有content phase handlers，直到某个函数处理返回NGX_OK或者NGX_ERROR。
 
-换句话说，如果某个location在处理到NGX_HTTP_CONTENT_PHASE阶段的时候，如果有content handler，那么所有的挂载的content phase handlers都不会被执行了。
+换句话说，当某个location处理到NGX_HTTP_CONTENT_PHASE阶段时，如果有content handler模块，那么NGX_HTTP_CONTENT_PHASE挂载的所有content phase handlers都不会被执行了。
 
-使用这个方法挂载上去的handler，必须在NGX_HTTP_CONTENT_PHASE阶段才能执行到。如果你想自己的handler要被更早的执行到的话，那就不要使用这种挂载方式。
+但是使用这个方法挂载上去的handler有一个特点是必须在NGX_HTTP_CONTENT_PHASE阶段才能执行到。如果你想自己的handler在更早的阶段执行，那就不要使用这种挂载方式。
 
-另外要提一下，在什么情况会使用这种方式来挂载。一般就是某个模块如果对某个location进行了处理以后，发现符合自己处理的逻辑，而且也没有必要再调用NGX_HTTP_CONTENT_PHASE阶段的其它handler进行处理的时候，就动态挂载上这个handler。
+那么在什么情况会使用这种方式来挂载呢？一般情况下，某个模块对某个location进行了处理以后，发现符合自己处理的逻辑，而且也没有必要再调用NGX_HTTP_CONTENT_PHASE阶段的其它handler进行处理的时候，就动态挂载上这个handler。
 
-好了，下面看一下这种挂载方式的具体代码（摘自Emiller's Guide To Nginx Module Development）。
+下面来看一下使用这种挂载方式的具体例子（摘自Emiller's Guide To Nginx Module Development）。
 
 .. code:: c
 
@@ -421,18 +463,16 @@ handler的编写步骤
 
 好，到了这里，让我们稍微整理一下思路，回顾一下实现一个handler的步骤:
 
-1. 编写模块基本结构。
-2. 实现handler的挂载函数。
-#. 编写handler处理函数。
+1. 编写模块基本结构。包括模块的定义，模块上下文结构，模块的配置结构等。
+2. 实现handler的挂载函数。根据模块的需求选择正确的挂载方式。
+3. 编写handler处理函数。模块的功能主要通过这个函数来完成。
 
-看起来不是那么难，对吧？还是那句老话，世上无难事，只怕有心人!
+看起来不是那么难，对吧？还是那句老话，世上无难事，只怕有心人! 现在我们来完整的分析前面提到的hello handler module示例的功能和代码。
 
-hello handler 模块
+示例: hello handler 模块
 -------------------------
 
-我们在前面已经看到了这个hello handler module的部分重要的结构。现在我们完整的介绍一下这个示例模块的功能和代码。
-
-该模块提供了2个配置指令，仅可以出现在location指令的block中。这两个指令是hello_string, 该参数接受一个参数来设置显示的字符串。如果没有跟参数，那么就使用默认的字符串作为响应字符串。
+在前面已经看到了这个hello handler module的部分重要的结构。该模块提供了2个配置指令，仅可以出现在location指令的作用域中。这两个指令是hello_string, 该参数接受一个参数来设置显示的字符串。如果没有跟参数，那么就使用默认的字符串作为响应字符串。
 
 另一个参数是hello_counter，如果设置为on，则会在响应的字符串后面追加Visited Times:的字样，以统计请求的次数。
 
@@ -644,10 +684,9 @@ hello handler 模块
 	static char *
 	ngx_http_hello_string(ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 	{
-		ngx_http_core_loc_conf_t *clcf;
+	
 		ngx_http_hello_loc_conf_t* local_conf;
 		 
-		clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
 		
 		local_conf = conf;
 		char* rv = ngx_conf_set_str_slot(cf, cmd, conf);
@@ -662,9 +701,6 @@ hello handler 模块
 		void *conf)
 	{
 		ngx_http_hello_loc_conf_t* local_conf;
-		ngx_http_core_loc_conf_t *clcf;
-
-		clcf = ngx_http_conf_get_module_loc_conf(cf, ngx_http_core_module);
 		
 		local_conf = conf;
 		
@@ -696,12 +732,14 @@ hello handler 模块
 	}
 
 
-通过上面一些介绍，我相信大家都能对整个程序有一个比较好的理解。唯一可能感觉有些理解困难的地方在于ngx_http_hello_handler函数里面产生和设置输出。但其实大家在本书的前面的相关章节都可以看到对ngx_buf_t和request等相关数据结构的说明。如果仔细看了这些地方的说明的话，应该对这里代码的实现就比较容易理解了。因此，这里不再赘述解释。
+通过上面一些介绍，我相信大家都能对整个示例模块有一个比较好的理解。唯一可能感觉有些理解困难的地方在于ngx_http_hello_handler函数里面产生和设置输出。但其实大家在本书的前面的相关章节都可以看到对ngx_buf_t和request等相关数据结构的说明。如果仔细看了这些地方的说明的话，应该对这里代码的实现就比较容易理解了。因此，这里不再赘述解释。
 
 
 
 handler模块的编译和使用
 -------------------------
+
+模块的功能开发完了之后，模块的使用还需要编译才能够执行，下面我们来看下模块的编译和使用。
 
 
 config文件的编写
@@ -746,7 +784,7 @@ jizhao Visited Times:1
 
 当然你访问多次，这个次数是会增加的。
 
-部分handler模块的分析
+更多handler模块示例分析
 -----------------------
 
 
