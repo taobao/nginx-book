@@ -1,4 +1,4 @@
-nginx的请求处理阶段 (30%)
+nginx的请求处理阶段 (70%)
 =======================================
 
 
@@ -1296,7 +1296,7 @@ REWRITE阶段为location级别的重写，这个阶段的checker和SERVER_REWRIT
 POST_REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-该阶段不能注册handler，仅仅只是检查上一阶段是否做了uri重写，如果没有重写的话，直接进入下一阶段；如果有重写的话，则利用next跳转域往前跳转到FIND_CONFIG阶段重写执行。Nginx对uri重写次数做了限制，默认是10次。
+该阶段不能注册handler，仅仅只是检查上一阶段是否做了uri重写，如果没有重写的话，直接进入下一阶段；如果有重写的话，则利用next跳转域往前跳转到FIND_CONFIG阶段重新执行。Nginx对uri重写次数做了限制，默认是10次。
 
 
 PREACCESS阶段
@@ -1400,7 +1400,7 @@ CONTENT阶段有些特殊，它不像其他阶段只能执行固定的handler链
 LOG阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LOG阶段主要的目的就是打访问日志，进入该阶段表明该请求的响应已经发送到系统发送缓冲区。另外这个阶段的handler链实际上并不是在ngx_http_core_run_phases函数中执行，而是在释放请求资源的ngx_http_free_request函数中运行，这样做的原因实际是为了简化流程，因为ngx_http_core_run_phases可能会执行多次，而LOG阶段只需要再请求所有逻辑都结束时运行一次，所以在ngx_http_free_request函数中运行LOG阶段的handler链是非常好的选择。具体的执行的函数为ngx_http_log_request：
+LOG阶段主要的目的就是记录访问日志，进入该阶段表明该请求的响应已经发送到系统发送缓冲区。另外这个阶段的handler链实际上并不是在ngx_http_core_run_phases函数中执行，而是在释放请求资源的ngx_http_free_request函数中运行，这样做的原因实际是为了简化流程，因为ngx_http_core_run_phases可能会执行多次，而LOG阶段只需要再请求所有逻辑都结束时运行一次，所以在ngx_http_free_request函数中运行LOG阶段的handler链是非常好的选择。具体的执行的函数为ngx_http_log_request：
 
 .. code:: c
 
