@@ -1,4 +1,4 @@
-nginx的请求处理阶段 (30%)
+nginx的请求处理阶段 (70%)
 =======================================
 
 
@@ -1179,44 +1179,251 @@ nginx按请求处理的执行顺序将处理流程划分为多个阶段，一般
 
 SERVER_REWRITE阶段的节点的next域指向FIND_CONFIG阶段的第1个节点，REWRITE阶段的next域指向POST_REWRITE阶段的第1个节点，而POST_REWRITE阶段的next域则指向FIND_CONFIG，因为当出现location级别的uri重写时，可能需要重新匹配新的location，PREACCESS阶段的next域指向ACCESS域，ACCESS和POST_ACCESS阶段的next域则是则是指向CONTENT阶段，当然如果TRY_FILES阶段存在的话，则是指向TRY_FILES阶段，最后CONTENT阶段的next域指向LOG阶段，当然next域是每个阶段的checker函数根据该阶段的需求来使用的，没有需要时，checker函数可能都不会使用到它。
 
+
 POST_READ阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 POST_READ阶段是nginx处理请求流程中第一个可以添加模块函数的阶段，任何需要在接收完请求头之后立刻处理的逻辑可以在该阶段注册处理函数。nginx源码中只有realip模块在该阶段注册了函数，当nginx前端多了一个7层负载均衡层，并且客户端的真实ip被前端保存在请求头中时，该模块用来将客户端的ip替换为请求头中保存的值。realip模块之所以在POST_READ阶段执行的原因是它需要在其他模块执行之前悄悄的将客户端ip替换为真实值，而且它需要的信息仅仅只是请求头。一般很少有模块需要注册在POST_READ阶段，realip模块默认没有编译进nginx。
 
-find-config阶段
+POST_READ阶段的checker函数是ngx_http_core_generic_phase，这个函数是nginx phase默认的checker函数，后面的PREACCESS phase也是用checker，下面对它做一下介绍：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
+    {
+        ngx_int_t  rc;
+
+        /*
+         * generic phase checker,
+         * used by the post read and pre-access phases
+         */
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "generic phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc == NGX_OK) {
+            r->phase_handler = ph->next;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_DECLINED) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_AGAIN || rc == NGX_DONE) {
+            return NGX_OK;
+        }
+
+        /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
+
+        ngx_http_finalize_request(r, rc);
+
+        return NGX_OK;
+    }
+
+这个函数逻辑非常简单，调用该phase注册的handler函数，需要注意的是该函数对handler返回值的处理，一般而言handler返回：
+
+:NGX_OK: 表示该阶段已经处理完成，需要转入下一个阶段；
+
+:NG_DECLINED: 表示需要转入本阶段的下一个handler继续处理；
+
+:NGX_AGAIN, NGX_DONE: 表示需要等待某个事件发生才能继续处理（比如等待网络IO），此时Nginx为了不阻塞其他请求的处理，必须中断当前请求的执行链，等待事件发生之后继续执行该handler；
+
+:NGX_ERROR: 表示发生了错误，需要结束该请求。
+
+checker函数根据handler函数的不同返回值，给上一层的ngx_http_core_run_phases函数返回NGX_AGAIN或者NGX_OK，如果期望上一层继续执行后面的phase则需要确保checker函数不是返回NGX_OK，不同checker函数对handler函数的返回值处理还不太一样，开发模块时需要确保相应阶段的checker函数对返回值的处理在你的预期之内。
+
+
+SERVER_REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+SERVER_REWRITE阶段是nginx中第一个必须经历的重要phase，请求进入此阶段时已经找到对应的虚拟主机（server）配置。nginx的rewrite模块在这个阶段注册了一个handler，rewrite模块提供url重写指令rewrite，变量设置指令set，以及逻辑控制指令if、break和return，用户可以在server配置里面，组合这些指令来满足自己的需求，而不需要另外写一个模块，比如将一些前缀满足特定模式的uri重定向到一个固定的url，还可以根据请求的属性来决定是否需要重写或者给用户发送特定的返回码。rewrite提供的逻辑控制指令能够满足一些简单的需求，针对一些较复杂的逻辑可能需要注册handler通过独立实现模块的方式来满足。
+
+需要注意该阶段和后面的REWRITE阶段的区别，在SERVER_REWRITE阶段中，请求还未被匹配到一个具体的location中。该阶段执行的结果（比如改写后的uri）会影响后面FIND_CONFIG阶段的执行。另外这个阶段也是内部子请求执行的第一个阶段。
+SERVER_REWRITE阶段的checker函数是ngx_http_core_rewrite_phase：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_rewrite_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
+    {
+        ngx_int_t  rc;
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "rewrite phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc == NGX_DECLINED) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_DONE) {
+            return NGX_OK;
+        }
+
+        /* NGX_OK, NGX_AGAIN, NGX_ERROR, NGX_HTTP_...  */
+
+        ngx_http_finalize_request(r, rc);
+
+        return NGX_OK;
+    }
+
+这个函数和上面说的ngx_http_core_generic_phase函数流程基本一致，唯一的区别就是对handler返回值的处理稍有不同，比如这里对NGX_OK的处理是调用ngx_http_finalize_request结束请求，所以再强调一下，handler函数的返回值一定要根据不同phase的checker函数来设置。Nginx的rewrite模块会挂上一个名为ngx_http_rewrite_handler的handler。
 
 
-rewrite阶段
+FIND_CONFIG阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+FIND_CONFIG阶段顾名思义就是寻找配置阶段，具体一点就是根据uri查找location配置，实际上就是设置r->loc_conf，在此之前r->loc_conf使用的server级别的，查找location过程由函数ngx_http_core_find_location完成，具体查找流流程这里不再赘述，可以参考上一章关于location管理的内容，值得注意的是当ngx_http_core_find_location函数返回NGX_DONE时，Nginx会返回301，将用户请求做一个重定向，这种情况仅发生在该location使用了proxy_pass/fastcgi/scgi/uwsgi/memcached模块，且location的名字以/符号结尾，并且请求的uri为该location除/之外的前缀，比如对location /xx/，如果某个请求/xx访问到该location，则会被重定向为/xx/。另外Nginx中location可以标识为internal，即内部location，这种location只能由子请求或者内部跳转访问。
+
+找到location配置后，Nginx调用了ngx_http_update_location_config函数来更新请求相关配置，其中最重要的是更新请求的content handler，不同location可以有自己的content handler。
+
+最后，由于有REWRITE_PHASE的存在，FIND_CONFIG阶段可能会被执行多次。
 
 
-post-rewrite阶段
+REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+REWRITE阶段为location级别的重写，这个阶段的checker和SERVER_REWRITE阶段的是同一个函数，而且Nginx的rewrite模块对这2个阶段注册的是同一个handler，2者唯一区别就是执行时机不一样，REWRITE阶段为location级别的重写，SERVER_REWRITE执行之后是FIND_CONFIG阶段，REWRITE阶段执行之后是POST_REWRITE阶段。
 
 
-access阶段
+POST_REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+该阶段不能注册handler，仅仅只是检查上一阶段是否做了uri重写，如果没有重写的话，直接进入下一阶段；如果有重写的话，则利用next跳转域往前跳转到FIND_CONFIG阶段重新执行。Nginx对uri重写次数做了限制，默认是10次。
 
 
-post-access阶段
+PREACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+进入该阶段表明Nginx已经将请求确定到了某一个location(当该server没有任何location时，也可能是server），如论如何请求的loc_conf配置已经确定下来，该阶段一般用来做资源控制，默认情况下，诸如ngx_http_limit_conn_module，ngx_http_limit_req_module等模块会在该阶段注册handler，用于控制连接数，请求速率等。PREACCESS阶段使用的checker是默认的ngx_http_core_generic_phase函数。
 
 
-content阶段
+ACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+该阶段的首要目的是做权限控制，默认情况下，Nginx的ngx_http_access_module和ngx_http_auth_basic_module模块分别会在该阶段注册一个handler。
+
+ACCESS阶段的checker是ngx_http_core_access_phase函数，此函数对handler返回值的处理大致和ngx_http_core_generic_phase一致，特殊的地方是当clcf->satisfy为NGX_HTTP_SATISFY_ALL，也就是需要满足该阶段注册的所有handler的验证时，某个handler返回NGX_OK时还需要继续处理本阶段的其他handler。clcf->satisfy的值可以使用satisfy指令指定。
 
 
-log阶段
+POST_ACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+POST_ACCESS和POST_REWRITE阶段一样，只是处理一下上一阶段的结果，而不能挂载自己的handler，具体为如果ACCESS阶段返回了NGX_HTTP_FORBIDDEN或NGX_HTTP_UNAUTHORIZED（记录在r->access_code字段），该阶段会结束掉请求。
+
+
+TRY_FILES阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TRY_FILES阶段仅当配置了try_files指令时生效，实际上该指令不常用，它的功能是指定一个或者多个文件或目录，最后一个参数可以指定为一个location或一个返回码，当设置了该指令时，TRY_FILES阶段调用checker函数ngx_http_core_try_files_phase来依此检查指定的文件或目录是否存在，如果本地文件系统存在某个文件或目录则退出该阶段继续执行下面的阶段，否则内部重定向到最后一个参数指定的location或返回指定的返回码。
+
+该阶段也不能注册handler。
+
+
+CONTENT阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CONTENT阶段可以说是整个执行链中最重要的阶段，请求从这里开始执行业务逻辑并产生响应，下面来分析一下它的checker函数：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_content_phase(ngx_http_request_t *r,
+        ngx_http_phase_handler_t *ph)
+    {
+        size_t     root;
+        ngx_int_t  rc;
+        ngx_str_t  path;
+
+        if (r->content_handler) {
+            r->write_event_handler = ngx_http_request_empty_handler;
+            ngx_http_finalize_request(r, r->content_handler(r));
+            return NGX_OK;
+        }
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "content phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc != NGX_DECLINED) {
+            ngx_http_finalize_request(r, rc);
+            return NGX_OK;
+        }
+
+        /* rc == NGX_DECLINED */
+
+        ph++;
+
+        if (ph->checker) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        /* no content handler was found */
+
+        if (r->uri.data[r->uri.len - 1] == '/') {
+
+            if (ngx_http_map_uri_to_path(r, &path, &root, 0) != NULL) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                              "directory index of \"%s\" is forbidden", path.data);
+            }
+
+            ngx_http_finalize_request(r, NGX_HTTP_FORBIDDEN);
+            return NGX_OK;
+        }
+
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "no handler found");
+
+        ngx_http_finalize_request(r, NGX_HTTP_NOT_FOUND);
+        return NGX_OK;
+    }
+
+CONTENT阶段有些特殊，它不像其他阶段只能执行固定的handler链，还有一个特殊的content_handler，每个location可以有自己独立的content handler，而且当有content handler时，CONTENT阶段只会执行content handler，不再执行本阶段的handler链。
+
+默认情况下，Nginx会在CONTENT阶段的handler链挂上index模块，静态文件处理模块等的handler。另外模块还可以设置独立的content handler，比如ngx_http_proxy_module的proxy_pass指令会设置一个名为ngx_http_proxy_handler的content handler。
+
+接下来看一下上面的checker函数的执行流程，首先检查是否设置了r->content_handler，如果设置了的话，则执行它，需要注意的是在执行它之前，Nginx将r->write_event_handler设置为了ngx_http_request_empty_handler，先看一下设置r->write_event_handler之前的值是什么，在ngx_http_handler函数中它被设置为ngx_http_core_run_phases，而ngx_http_core_run_phases会运行每个阶段的checker函数。正常流程中，如果某个阶段需要等待某个写事件发生时，该阶段的handler会返回NGX_OK来中断ngx_http_core_run_phases的运行，等到下次写事件过来时，会继续执行之前阶段的handler；当执行r->content_handler的流程时，Nginx默认模块会去处理r->write_event_handler的值，也就是假设r->content_handler只能执行1次，如果模块设置的content handler涉及到IO操作，就需要合理的设置处理读写事件的handler（r->read_event_handler和r->write_event_handler）。
+
+还有一个需要注意的点是r->content_handler执行之后，Nginx直接用其返回值调用了ngx_http_finalize_request函数，Nginx将一大堆耦合的逻辑都集中在了这个函数当中，包括长连接，lingering_close，子请求等的处理都涉及到该函数，后面会有一节单独介绍这个函数。这里需要提醒的是r->content_handler如果并未完成整个请求的处理，而只是需要等待某个事件发生而退出处理流程的话，必须返回一个合适的值传给ngx_http_finalize_request，一般而言是返回NGX_DONE，而且需要将请求的引用计数（r->count）加1，确保ngx_http_finalize_request函数不会将该请求释放掉。
+
+函数的其他部分处理走handler链的情况，特殊的地方是CONTENT阶段是ngx_http_core_run_phases函数跑的最后一个阶段，如果最后一个handler返回NGX_DECLINED，此时Nginx会给客户端返回NGX_HTTP_FORBIDDEN（403）或NGX_HTTP_NOT_FOUND（404）。
+
+
+LOG阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LOG阶段主要的目的就是记录访问日志，进入该阶段表明该请求的响应已经发送到系统发送缓冲区。另外这个阶段的handler链实际上并不是在ngx_http_core_run_phases函数中执行，而是在释放请求资源的ngx_http_free_request函数中运行，这样做的原因实际是为了简化流程，因为ngx_http_core_run_phases可能会执行多次，而LOG阶段只需要再请求所有逻辑都结束时运行一次，所以在ngx_http_free_request函数中运行LOG阶段的handler链是非常好的选择。具体的执行的函数为ngx_http_log_request：
+
+.. code:: c
+
+    static void
+    ngx_http_log_request(ngx_http_request_t *r)
+    {
+        ngx_uint_t                  i, n;
+        ngx_http_handler_pt        *log_handler;
+        ngx_http_core_main_conf_t  *cmcf;
+
+        cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
+
+        log_handler = cmcf->phases[NGX_HTTP_LOG_PHASE].handlers.elts;
+        n = cmcf->phases[NGX_HTTP_LOG_PHASE].handlers.nelts;
+
+        for (i = 0; i < n; i++) {
+            log_handler[i](r);
+        }
+    }
+
+函数非常简单，仅仅是遍历LOG阶段的handler链，逐一执行，而且不会检查返回值。LOG阶段和其他阶段的不同点有两个，一是执行点是在ngx_http_free_request中，二是这个阶段的所有handler都会被执行。
+
+至此，Nginx请求处理的多阶段执行链的各个阶段都已经介绍完毕，弄清楚每个阶段的执行时机以及每个阶段的不同特点对写模块非常重要。
 
 
 返回响应数据
