@@ -2557,7 +2557,7 @@ struct iovec *iov, headers[NGX_HEADERS] 这个主要是用于sendfile和writev�
         if (ngx_buf_in_memory(cl->buf)) {  
             cl->buf->pos += (size_t) sent;  
         }  
-        /* 同上。  
+        /* 同上 */
         if (cl->buf->in_file) {  
             cl->buf->file_pos += sent;  
         }  
