@@ -363,7 +363,7 @@ typedef ngx_int_t (\*ngx_http_handler_pt)(ngx_http_request_t  \*r);
 
 r是http请求。里面包含请求所有的信息，这里不详细说明了，可以参考别的章节的介绍。
 该函数处理成功返回NGX_OK，处理发生错误返回NGX_ERROR，拒绝处理（留给后续的handler进行处理）返回NGX_DECLINE。
-返回NGX_OK也就代表给客户端的响应已经生成好了，否则返回NGX_OK就发生错误了。
+返回NGX_OK也就代表给客户端的响应已经生成好了，否则返回NGX_ERROR就发生错误了。
 
 
 
