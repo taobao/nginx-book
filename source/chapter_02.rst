@@ -452,17 +452,6 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
 该函数也是分配size大小的内存，并且对分配的内存块进行了清零。内部实际上是转调用ngx_palloc实现的。 
 
 
-.. code:: c
-
-    void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size);
-
-对指针p指向的一块内存再分配。如果p是NULL，则直接分配一块新的new_size大小的内存。 
-
-如果p不是NULL, 新分配一块内存，并把旧内存中的内容拷贝至新内存块中，然后释放p的旧内存（具体能不能释放旧的，要视具体的情况而定，这里不再详述）。
-
-这个函数实际上也是使用ngx_palloc实现的。
-
-
 .. code:: c 
 
     void *ngx_pmemalign(ngx_pool_t *pool, size_t size, size_t alignment);
