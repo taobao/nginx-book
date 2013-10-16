@@ -3003,8 +3003,6 @@ ssl连接建立(ssl握手)
 
 更具ssl协议规定，在正式发起数据收发前，需要建立ssl连接，连接建立过程既ssl握手。nginx在创建和初始化http请求阶段的同时为tcp连接建立做准备，主要流程在ngx_http_init_request函数中实现:
 
-.c
-  
 .. code:: c
 
     static void
@@ -3066,6 +3064,7 @@ ssl连接建立(ssl握手)
 ngx_http_init_request大部分流程已经在前面章节分析过了，这个函数主要负责初始化http请求，此时并没有实际解析http请求。若发来的请求是经由ssl协议加密的，直接解析http请求就会出错。ngx_http_init_request中ssl协议相关处理流程:
 
 1，首先判断c->ssl是否为空。若不为空：说明这里是http长连接的情况，ssl连接已经在第一个请求进入时建立了。这里只要复用这个ssl连接即可，跳过ssl握手阶段。
+
 2.(1)，若c->ssl为空：需要进行ssl握手来建立连接。此时调用ngx_ssl_create_connection为ssl连接建立做准备。
 
 ngx_ssl_create_connection 简化代码如下:
@@ -3106,6 +3105,7 @@ ngx_ssl_create_connection 简化代码如下:
     }
 
 2.(2)，设置连接读事件处理函数为ngx_http_ssl_handshake，这将改变后续处理http请求的正常流程为：先进行ssl握手，再正常处理http请求。
+
 3，标明当前待发送的数据须在内存中，以此可以让ssl对数据进行加密。由于开启了ssl协议，对发送出去的数据要进行加密，这就要求待发送的数据必须在内存中。 标识r->main_filter_need_in_memory为1，可以让后续数据发送前，将数据读取到内存中 (防止在文件中的数据通过sendfile直接发送出去，而没有加密）。
 
 
@@ -3113,7 +3113,7 @@ ngx_ssl_create_connection 简化代码如下:
 +++++++++++++++++++++++
 
 
-由于在ngx_http_init_request中将连接读事件处理函数设置成ngx_http_ssl_handshake，当连接中有可读数据时，将会进入ngx_http_ssl_handshake来处理(若未开启ssl，将进入ngx_http_process_request_line)直接解析http请求）
+由于在ngx_http_init_request中将连接读事件处理函数设置成ngx_http_ssl_handshake，当连接中有可读数据时，将会进入ngx_http_ssl_handshake来处理(若未开启ssl，将进入ngx_http_process_request_line直接解析http请求）
 
 在ngx_http_ssl_handshake中，来进行ssl握手:
 
@@ -3236,7 +3236,9 @@ ngx_ssl_create_connection 简化代码如下:
     } /* end of ngx_http_process_request() */
 
 5，当ssl握手成功或者出错时，调用ngx_http_ssl_handshake_handler函数。
+
 5.(1)，若ssl握手完成 (c->ssl->handshaked由ngx_ssl_handshake()确定握手完成后设为1)，设置读事件处理函数为ngx_http_process_request_line，并调用此函数正常处理http请求。
+
 5.(2)，若ssl握手没完成（则说明ssl握手出错），则返回400 BAD REQUST给客户端。
 
 至此，ssl连接已经建立，此后在ngx_http_process_request中会读取数据并解密然后正常处理http请求。
