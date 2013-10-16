@@ -233,7 +233,15 @@ ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
     ngx_str_set(&str, "hello world");    
     ngx_str_null(&str1);
 
-不过要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误(因为ngx_str_set内部使用了sizeof()，如果传入的是u_char*，那么计算的是这个指针的长度，而不是字符串的长度)。如： 
+按照C99标准，您也可以这么做：
+
+.. code:: c
+
+    ngx_str_t str, str1;
+    str  = (ngx_str_t) ngx_string("hello world");
+    str1 = (ngx_str_t) ngx_null_string;
+
+另外要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误(因为ngx_str_set内部使用了sizeof()，如果传入的是u_char*，那么计算的是这个指针的长度，而不是字符串的长度)。如： 
 
 .. code:: c
 
@@ -442,17 +450,6 @@ ngx_pool_t相关结构及操作被定义在文件src/core/ngx_palloc.h|c中。
     void *ngx_pcalloc(ngx_pool_t *pool, size_t size);
 
 该函数也是分配size大小的内存，并且对分配的内存块进行了清零。内部实际上是转调用ngx_palloc实现的。 
-
-
-.. code:: c
-
-    void *ngx_prealloc(ngx_pool_t *pool, void *p, size_t old_size, size_t new_size);
-
-对指针p指向的一块内存再分配。如果p是NULL，则直接分配一块新的new_size大小的内存。 
-
-如果p不是NULL, 新分配一块内存，并把旧内存中的内容拷贝至新内存块中，然后释放p的旧内存（具体能不能释放旧的，要视具体的情况而定，这里不再详述）。
-
-这个函数实际上也是使用ngx_palloc实现的。
 
 
 .. code:: c 
