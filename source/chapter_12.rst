@@ -3162,15 +3162,15 @@ ngx_ssl_create_connection 简化代码如下:
             /* 
              * 调用ngx_ssl_handshake函数进行ssl握手，连接双方会在ssl握手时交换相
              * 关数据(ssl版本，ssl加密算法，server端的公钥等) 并正式建立起ssl连接。
-	     * ngx_ssl_handshake函数内部对openssl库进行了封装。
-	     * 调用SSL_do_handshake()来进行握手，并根据其返回值判断ssl握手是否完成
+             * ngx_ssl_handshake函数内部对openssl库进行了封装。
+             * 调用SSL_do_handshake()来进行握手，并根据其返回值判断ssl握手是否完成
              * 或者出错。
              */
             rc = ngx_ssl_handshake(c);
 
             /*
-	     * ssl握手可能需要多次数据交互才能完成。
-	     * 如果ssl握手没有完成，ngx_ssl_handshake会根据具体情况(如需要读取更
+             * ssl握手可能需要多次数据交互才能完成。
+             * 如果ssl握手没有完成，ngx_ssl_handshake会根据具体情况(如需要读取更
              * 多的握手数据包，或者需要发送握手数据包）来重新添加读写事件
              */
             if (rc == NGX_AGAIN) {
@@ -3185,7 +3185,7 @@ ngx_ssl_create_connection 简化代码如下:
 
             /*
              * 若ssl握手完成或者出错，ngx_ssl_handshake会返回NGX_OK或者NGX_ERROR, 然后ngx_http_ssl_handshake调用
-	     * ngx_http_ssl_handshake_handler以继续处理
+             * ngx_http_ssl_handshake_handler以继续处理
              */
 
             ngx_http_ssl_handshake_handler(c);
