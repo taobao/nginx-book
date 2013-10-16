@@ -27,7 +27,7 @@ C.1 编译与安装
         
 磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
     
-编译器及相关工具： 必须确保操作系统安装有GCC编译器；Autoconf和Automake工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ autoconf automake；
+编译器及相关工具： 必须确保操作系统安装有GCC编译器；make工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ make；
 
 模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
         
