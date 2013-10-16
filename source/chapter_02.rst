@@ -238,8 +238,8 @@ ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
 .. code:: c
 
     ngx_str_t str, str1;
-    str  = (ngx_str_t)ngx_string("hello world");
-    str1 = (ngx_str_t)ngx_null_string;
+    str  = (ngx_str_t) ngx_string("hello world");
+    str1 = (ngx_str_t) ngx_null_string;
 
 另外要注意的是，ngx_string与ngx_str_set在调用时，传进去的字符串一定是常量字符串，否则会得到意想不到的错误(因为ngx_str_set内部使用了sizeof()，如果传入的是u_char*，那么计算的是这个指针的长度，而不是字符串的长度)。如： 
 
