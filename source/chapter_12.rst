@@ -2962,3 +2962,364 @@ ngx_http_run_posted_requests函数的调用点后面会做说明。
      ...
     } 
 
+
+https请求处理解析
+-----------------------
+
+
+nginx支持ssl简介
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+nginx-1.2.0编译时默认是不支持ssl协议的，需要通过编译指令来开启对其支持：
+
+.. code:: c
+
+    ./configure --with-http_ssl_module
+
+在nginx源码中，ssl相关代码用宏定义变量NGX_HTTP_SSL来控制是否开启。这给我们查找和阅读ssl相关代码带来了方便，如下:
+
+.. code:: c
+    #if NGX_HTTP_SSL
+        /* http ssl code */
+    #endif
+
+ssl协议工作在tcp协议与http协议之间。nginx在支持ssl协议时，需要注意三点，其他时候只要正常处理http协议即可:
+
+1. tcp连接建立时，在tcp连接上建立ssl连接
+
+2. tcp数据接收后，将收到的数据解密并将解密后的数据交由正常http协议处理流程
+
+3. tcp数据发送前，对(http)数据进行加密，然后再发送
+
+以下章节将分别介绍这三点。
+
+
+ssl连接建立(ssl握手)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+对ssl连接建立的准备
++++++++++++++++++++++++
+
+
+更具ssl协议规定，在正式发起数据收发前，需要建立ssl连接，连接建立过程既ssl握手。nginx在创建和初始化http请求阶段的同时为tcp连接建立做准备，主要流程在ngx_http_init_request函数中实现:
+
+.. code:: c
+
+    static void
+    ngx_http_init_request(ngx_event_t *rev)
+    {
+    
+    ...
+    
+    #if (NGX_HTTP_SSL)
+    
+        {
+        ngx_http_ssl_srv_conf_t  *sscf;
+    
+        sscf = ngx_http_get_module_srv_conf(r, ngx_http_ssl_module);
+        if (sscf->enable || addr_conf->ssl) {
+    
+            /* c->ssl不为空时，表示请求复用长连接(已经建立过ssl连接) */
+            if (c->ssl == NULL) {
+    
+                c->log->action = "SSL handshaking";
+    
+                /*
+                 * nginx.conf中开启ssl协议(listen 443 ssl;)，
+                 * 却没用设置服务器证书(ssl_certificate <certificate_path>;)
+                 */
+                if (addr_conf->ssl && sscf->ssl.ctx == NULL) {
+                    ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                                  "no \"ssl_certificate\" is defined "
+                                  "in server listening on SSL port");
+                    ngx_http_close_connection(c);
+                    return;
+                }
+    
+                /* 
+                 * 创建ngx_ssl_connection_t并初始化
+                 * openssl库中关于ssl连接的初始化
+                 */
+                if (ngx_ssl_create_connection(&sscf->ssl, c, NGX_SSL_BUFFER)
+                    != NGX_OK)
+                {
+                    ngx_http_close_connection(c);
+                    return;
+                }
+    
+                rev->handler = ngx_http_ssl_handshake;
+            }
+    
+            /* ssl加密的数据必须读到内存中 */
+            r->main_filter_need_in_memory = 1;
+        }
+        }
+    
+    #endif
+    
+    ...
+    
+    }
+
+ngx_http_init_request大部分流程已经在前面章节分析过了，这个函数主要负责初始化http请求，此时并没有实际解析http请求。若发来的请求是经由ssl协议加密的，直接解析http请求就会出错。ngx_http_init_request中ssl协议相关处理流程:
+
+1，首先判断c->ssl是否为空。若不为空：说明这里是http长连接的情况，ssl连接已经在第一个请求进入时建立了。这里只要复用这个ssl连接即可，跳过ssl握手阶段。
+
+2.(1)，若c->ssl为空：需要进行ssl握手来建立连接。此时调用ngx_ssl_create_connection为ssl连接建立做准备。
+
+ngx_ssl_create_connection 简化代码如下:
+
+.. code:: c
+
+    ngx_int_t
+    ngx_ssl_create_connection(ngx_ssl_t *ssl, ngx_connection_t *c, ngx_uint_t flags)
+    {
+        ngx_ssl_connection_t  *sc;
+    
+        /* ngx_ssl_connection_t是nginx对ssl连接的描述结构，记录了ssl连接的信息和状态 */
+        sc = ngx_pcalloc(c->pool, sizeof(ngx_ssl_connection_t));
+    
+        sc->buffer = ((flags & NGX_SSL_BUFFER) != 0);
+    
+        /* 创建openssl库中对ssl连接的描述结构 */
+        sc->connection = SSL_new(ssl->ctx);
+    
+        /* 关联(openssl库)ssl连接到tcp连接对应的socket */
+        SSL_set_fd(sc->connection, c->fd);
+    
+        if (flags & NGX_SSL_CLIENT) {
+            /* upstream中发起对后端的ssl连接，指明nginx ssl连接是客户端 */
+            SSL_set_connect_state(sc->connection);
+    
+        } else {
+            /* 指明nginx ssl连接是服务端 */
+            SSL_set_accept_state(sc->connection);
+        }
+
+        /* 关联(openssl库)ssl连接到用户数据(当前连接c) */
+        SSL_set_ex_data(sc->connection, ngx_ssl_connection_index, c);
+    
+        c->ssl = sc;
+    
+        return NGX_OK;
+    }
+
+2.(2)，设置连接读事件处理函数为ngx_http_ssl_handshake，这将改变后续处理http请求的正常流程为：先进行ssl握手，再正常处理http请求。
+
+3，标明当前待发送的数据须在内存中，以此可以让ssl对数据进行加密。由于开启了ssl协议，对发送出去的数据要进行加密，这就要求待发送的数据必须在内存中。 标识r->main_filter_need_in_memory为1，可以让后续数据发送前，将数据读取到内存中 (防止在文件中的数据通过sendfile直接发送出去，而没有加密）。
+
+
+实际ssl握手阶段
++++++++++++++++++++++++
+
+
+由于在ngx_http_init_request中将连接读事件处理函数设置成ngx_http_ssl_handshake，当连接中有可读数据时，将会进入ngx_http_ssl_handshake来处理(若未开启ssl，将进入ngx_http_process_request_line直接解析http请求）
+
+在ngx_http_ssl_handshake中，来进行ssl握手:
+
+1，首先判断连接是否超时，如果超时则关闭连接
+
+.. code:: c
+
+    static void
+    ngx_http_process_request(ngx_http_request_t *r)
+    {
+        if (rev->timedout) {
+            ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
+            c->timedout = 1;
+            ngx_http_close_request(r, NGX_HTTP_REQUEST_TIME_OUT);
+            return;
+        }
+
+2，首字节预读：从tcp连接中查看一个字节(通过MSG_PEEK查看tcp连接中数据，但不会实际读取该数据)，若tcp连接中没有准备好的数据，则重新添加读事件退出等待新数据到来。
+
+.. code:: c
+
+    n = recv(c->fd, (char *) buf, 1, MSG_PEEK);
+
+    if (n == -1 && ngx_socket_errno == NGX_EAGAIN) {
+
+        if (!rev->timer_set) {
+            ngx_add_timer(rev, c->listening->post_accept_timeout);
+        }
+
+        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+            ngx_http_close_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return;
+    }
+
+3，首字节探测：若成功查看1个字节数据，通过该首字节来探测接受到的数据是ssl握手包还是http数据。根据ssl协议规定，ssl握手包的首字节中包含有ssl协议的版本信息。nginx根据此来判断是进行ssl握手还是返回正常处理http请求(实际返回应答400 BAD REQUEST)。
+
+.. code:: c
+
+    if (n == 1) {
+        if (buf[0] & 0x80 /* SSLv2 */ || buf[0] == 0x16 /* SSLv3/TLSv1 */) {
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, rev->log, 0,
+                           "https ssl handshake: 0x%02Xd", buf[0]);
+
+            /* 
+             * 调用ngx_ssl_handshake函数进行ssl握手，连接双方会在ssl握手时交换相
+             * 关数据(ssl版本，ssl加密算法，server端的公钥等) 并正式建立起ssl连接。
+             * ngx_ssl_handshake函数内部对openssl库进行了封装。
+             * 调用SSL_do_handshake()来进行握手，并根据其返回值判断ssl握手是否完成
+             * 或者出错。
+             */
+            rc = ngx_ssl_handshake(c);
+
+            /*
+             * ssl握手可能需要多次数据交互才能完成。
+             * 如果ssl握手没有完成，ngx_ssl_handshake会根据具体情况(如需要读取更
+             * 多的握手数据包，或者需要发送握手数据包）来重新添加读写事件
+             */
+            if (rc == NGX_AGAIN) {
+
+                if (!rev->timer_set) {
+                    ngx_add_timer(rev, c->listening->post_accept_timeout);
+                }
+
+                c->ssl->handler = ngx_http_ssl_handshake_handler;
+                return;
+            }
+
+            /*
+             * 若ssl握手完成或者出错，ngx_ssl_handshake会返回NGX_OK或者NGX_ERROR, 然后ngx_http_ssl_handshake调用
+             * ngx_http_ssl_handshake_handler以继续处理
+             */
+
+            ngx_http_ssl_handshake_handler(c);
+
+            return;
+
+        } else {
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, rev->log, 0,
+                           "plain http");
+
+            r->plain_http = 1;
+        }
+    }
+
+需要特别注意，如果ssl握手完成，ngx_ssl_handshake会替换连接的读写接口。这样，后续需要读写数据时，替换的接口会对数据进行加密解密。详细代码见下:
+
+.. code:: c
+
+    ngx_int_t
+    ngx_ssl_handshake(ngx_connection_t *c)
+    {
+        n = SSL_do_handshake(c->ssl->connection);
+        /* 返回1表示ssl握手成功 */
+        if (n == 1) {   
+    ...
+            c->ssl->handshaked = 1;
+
+            c->recv = ngx_ssl_recv;
+            c->send = ngx_ssl_write;
+            c->recv_chain = ngx_ssl_recv_chain;
+            c->send_chain = ngx_ssl_send_chain;
+
+            return NGX_OK;
+        }
+    ...
+    }
+
+
+4，探测为http协议：正常的http协议包处理直接调用ngx_http_process_request_line处理http请求，并将读事件处理函数设置成ngx_http_process_request_line。(实际处理结果是向客户端返回400 BAD REQUET，在ngx_http_process_request中又对r->plain_http标志的单独处理。)
+
+.. code:: c
+
+        c->log->action = "reading client request line";
+
+        rev->handler = ngx_http_process_request_line;
+        ngx_http_process_request_line(rev);
+
+    } /* end of ngx_http_process_request() */
+
+5，当ssl握手成功或者出错时，调用ngx_http_ssl_handshake_handler函数。
+
+5.(1)，若ssl握手完成 (c->ssl->handshaked由ngx_ssl_handshake()确定握手完成后设为1)，设置读事件处理函数为ngx_http_process_request_line，并调用此函数正常处理http请求。
+
+5.(2)，若ssl握手没完成（则说明ssl握手出错），则返回400 BAD REQUST给客户端。
+
+至此，ssl连接已经建立，此后在ngx_http_process_request中会读取数据并解密然后正常处理http请求。
+
+.. code:: c
+
+    static void
+    ngx_http_ssl_handshake_handler(ngx_connection_t *c)
+    {
+        ngx_http_request_t  *r;
+    
+        if (c->ssl->handshaked) {
+    
+            /*
+             * The majority of browsers do not send the "close notify" alert.
+             * Among them are MSIE, old Mozilla, Netscape 4, Konqueror,
+             * and Links.  And what is more, MSIE ignores the server's alert.
+             *
+             * Opera and recent Mozilla send the alert.
+             */
+    
+            c->ssl->no_wait_shutdown = 1;
+    
+            c->log->action = "reading client request line";
+    
+            c->read->handler = ngx_http_process_request_line;
+            /* STUB: epoll edge */ c->write->handler = ngx_http_empty_handler;
+    
+            ngx_http_process_request_line(c->read);
+    
+            return;
+        }
+    
+        r = c->data;
+    
+        ngx_http_close_request(r, NGX_HTTP_BAD_REQUEST);
+    
+        return;
+    }
+
+
+ssl协议接受数据
++++++++++++++++++++++++
+
+
+ngx_http_process_request中处理http请求，需要读取和解析http协议。而实际数据读取是通过c->recv()函数来读取的，此函数已经在ngx_ssl_handshake中被替换成ngx_ssl_recv了。
+
+ngx_ssl_recv函数中调用openssl库函数SSL_read()来读取并解密数据，简化后如下：
+
+.. code:: c
+
+    ssize_t ngx_ssl_recv(ngx_connection_t *c, u_char *buf, size_t size)
+    {
+    ...
+        n = SSL_read(c->ssl->connection, buf, size);
+    ...
+        return n;
+    }
+
+
+ssl协议发送数据
++++++++++++++++++++++++
+
+
+当nginx发送数据时，如使用ngx_output_chain函数发送缓存的http数据缓存链时，通过调用c->send_chain()来发送数据。这个函数已经在ngx_ssl_handshake中被设置成ngx_ssl_send_chain了。ngx_ssl_send_chain会进一步调用ngx_ssl_write。而ngx_ssl_write调用openssl库SSL_write函数来加密并发送数据。
+
+.. code:: c
+
+    /* ngx_output_chain
+     *  -> ..
+     *   -> ngx_chain_writer
+     *     -> c->send_chain (ngx_ssl_send_chain) 
+     *      -> ngx_ssl_write
+     */
+    ssize_t ngx_ssl_write(ngx_connection_t *c, u_char *data, size_t size)
+    {
+    ...
+        n = SSL_write(c->ssl->connection, data, size);
+    ...
+        return n;
+    }
+
