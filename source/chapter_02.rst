@@ -1124,6 +1124,110 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
 
 
+
+
+ngx_queue_t(100%)
+~~~~~~~~~~~~~~~~~~~
+
+
+ngx_queue_t是nginx中的双向链表，在nginx源码目录src/core下面的ngx_queue.h|c里面。它的原型如下：
+
+.. code:: c
+
+    typedef struct ngx_queue_s ngx_queue_t;
+
+    struct ngx_queue_s {
+        ngx_queue_t  *prev;
+        ngx_queue_t  *next;
+    };
+
+不同于教科书中将链表节点的数据成员声明在链表节点的结构体中，ngx_queue_t只是声明了前向和后向指针。在使用的时候，我们首先需要定义一个哨兵节点(对于后续具体存放数据的节点，我们称之为数据节点)，比如：
+
+.. code:: c
+
+    ngx_queue_t free;
+
+接下来需要进行初始化，通过宏ngx_queue_init()来实现：
+
+.. code:: c
+
+    ngx_queue_init(&free);
+
+ngx_queue_init()的宏定义如下：
+
+.. code:: c
+
+    #define ngx_queue_init(q)     \
+        (q)->prev = q;            \
+        (q)->next = q;
+
+可见初始的时候哨兵节点的 prev 和 next 都指向自己，因此其实是一个空链表。ngx_queue_empty()可以用来判断一个链表是否为空，其实现也很简单，就是：
+
+.. code:: c
+    #define ngx_queue_empty(h)    \
+        (h == (h)->prev)
+
+那么如何声明一个具有数据元素的链表节点呢？只要在相应的结构体中加上一个 ngx_queue_t 的成员就行了。比如ngx_http_upstream_keepalive_module中的ngx_http_upstream_keepalive_cache_t：
+
+.. code:: c
+    typedef struct {
+        ngx_http_upstream_keepalive_srv_conf_t  *conf;
+
+        ngx_queue_t                        queue;
+        ngx_connection_t                  *connection;
+
+        socklen_t                          socklen;
+        u_char                             sockaddr[NGX_SOCKADDRLEN];
+    } ngx_http_upstream_keepalive_cache_t;
+
+对于每一个这样的数据节点，可以通过ngx_queue_insert_head()来添加到链表中，第一个参数是哨兵节点，第二个参数是数据节点，比如：
+
+.. code:: c
+    ngx_http_upstream_keepalive_cache_t cache;
+    ngx_queue_insert_head(&free, &cache.queue);
+
+相应的几个宏定义如下：
+
+.. code:: c
+
+    #define ngx_queue_insert_head(h, x)                         \
+        (x)->next = (h)->next;                                  \
+        (x)->next->prev = x;                                    \
+        (x)->prev = h;                                          \
+        (h)->next = x
+
+    #define ngx_queue_insert_after   ngx_queue_insert_head
+
+    #define ngx_queue_insert_tail(h, x)                          \
+        (x)->prev = (h)->prev;                                   \
+        (x)->prev->next = x;                                     \
+        (x)->next = h;                                           \
+        (h)->prev = x
+
+ngx_queue_insert_head()和ngx_queue_insert_after()都是往头部添加节点，ngx_queue_insert_tail()是往尾部添加节点。从代码可以看出哨兵节点的 prev 指向链表的尾数据节点，next 指向链表的头数据节点。另外ngx_queue_head()和ngx_queue_last()这两个宏分别可以得到头节点和尾节点。
+
+那假如现在有一个ngx_queue_t *q 指向的是链表中的数据节点的queue成员，如何得到ngx_http_upstream_keepalive_cache_t的数据呢？ nginx提供了ngx_queue_data()宏来得到ngx_http_upstream_keepalive_cache_t的指针，例如：
+
+.. code:: c
+    ngx_http_upstream_keepalive_cache_t *cache = ngx_queue_data(q,
+                                                     ngx_http_upstream_keepalive_cache_t,
+                                                     queue);
+
+
+也许您已经可以猜到ngx_queue_data是通过地址相减来得到的：
+
+.. code:: c
+
+    #define ngx_queue_data(q, type, link)                        \
+        (type *) ((u_char *) q - offsetof(type, link))
+
+
+另外nginx也提供了ngx_queue_remove()宏来从链表中删除一个数据节点，以及ngx_queue_add()用来将一个链表添加到另一个链表。
+
+
+
+
+
 nginx的配置系统(100%)
 ------------------------
 
