@@ -1495,6 +1495,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 内容产生阶段完成以后，生成的输出会被传递到filter模块去进行处理。filter模块也是与location相关的。所有的fiter模块都被组织成一条链。输出会依次穿越所有的filter，直到有一个filter模块的返回值表明已经处理完成。
 
 这里列举几个常见的filter模块，例如：
+
 #) server-side includes。
 #) XSLT filtering。
 #) 图像缩放之类的。
