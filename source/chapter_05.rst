@@ -163,7 +163,7 @@ Upstream模块！
 
 4\. ngx_http_memcached_finalize_request：无需额外操作。
 
-5\. ngx_http_memcached_process_header：模块的业务重点函数。memcache协议将头部信息被定义为第一行文本，可以找到这段代码证明：
+5\. ngx_http_memcached_process_header：模块的业务重点函数。memcache协议的头部信息被定义为第一行文本，可以找到这段代码证明：
 
 .. code:: c
 
