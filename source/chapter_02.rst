@@ -1164,12 +1164,14 @@ ngx_queue_init()的宏定义如下：
 可见初始的时候哨兵节点的 prev 和 next 都指向自己，因此其实是一个空链表。ngx_queue_empty()可以用来判断一个链表是否为空，其实现也很简单，就是：
 
 .. code:: c
+
     #define ngx_queue_empty(h)    \
         (h == (h)->prev)
 
 那么如何声明一个具有数据元素的链表节点呢？只要在相应的结构体中加上一个 ngx_queue_t 的成员就行了。比如ngx_http_upstream_keepalive_module中的ngx_http_upstream_keepalive_cache_t：
 
 .. code:: c
+
     typedef struct {
         ngx_http_upstream_keepalive_srv_conf_t  *conf;
 
@@ -1183,6 +1185,7 @@ ngx_queue_init()的宏定义如下：
 对于每一个这样的数据节点，可以通过ngx_queue_insert_head()来添加到链表中，第一个参数是哨兵节点，第二个参数是数据节点，比如：
 
 .. code:: c
+
     ngx_http_upstream_keepalive_cache_t cache;
     ngx_queue_insert_head(&free, &cache.queue);
 
@@ -1209,6 +1212,7 @@ ngx_queue_insert_head()和ngx_queue_insert_after()都是往头部添加节点，
 那假如现在有一个ngx_queue_t *q 指向的是链表中的数据节点的queue成员，如何得到ngx_http_upstream_keepalive_cache_t的数据呢？ nginx提供了ngx_queue_data()宏来得到ngx_http_upstream_keepalive_cache_t的指针，例如：
 
 .. code:: c
+
     ngx_http_upstream_keepalive_cache_t *cache = ngx_queue_data(q,
                                                      ngx_http_upstream_keepalive_cache_t,
                                                      queue);
