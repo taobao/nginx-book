@@ -128,11 +128,10 @@ ngx_command_t的定义，位于src/core/ngx_conf_file.h中。
 *   NGX_HTTP_LOC_CONF: 可以出现在http里面的location配置指令里。
 *   NGX_HTTP_UPS_CONF: 可以出现在http里面的upstream配置指令里。
 *   NGX_HTTP_SIF_CONF: 可以出现在http里面的server配置指令里的if语句所在的block中。
-*   NGX_HTTP_LMT_CONF: 可以出现在http里面的limit_except指令的block中。
-*   NGX_HTTP_LIF_CONF: 可以出现在http里面的location配置指令里的if语句所在的block中。
+*   NGX_HTTP_LIF_CONF: 可以出现在http里面的limit_except指令的block中。
 
 
-:set: 这是一个函数指针，当nginx在解析配置的时候，如果遇到这个配置指令，将会把读取到的值传递给这个函数进行分解处理。因为具体每个配置指令的值如何处理，只有定义这个配置指令的人是最清楚的。来看一些这个函数指针要求的函数原型。
+:set: 这是一个函数指针，当nginx在解析配置的时候，如果遇到这个配置指令，将会把读取到的值传递给这个函数进行分解处理。因为具体每个配置指令的值如何处理，只有定义这个配置指令的人是最清楚的。来看一下这个函数指针要求的函数原型。
 
 .. code:: c
 
