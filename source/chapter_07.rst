@@ -59,7 +59,7 @@
 
                 ngx_http_variable_t *ngx_http_add_variable(ngx_conf_t *cf, ngx_str_t *name, ngx_uint_t flags);
 
-这个函数所做的工作就是将变量 "name"添加进全局的hash key表中,然后初始化一些域，不过这里要注意，对应的变量的get/set回调，需要当这个函数返回之后，显示的设置,比如在split_clients模块中的例子:
+这个函数所做的工作就是将变量 "name"添加进全局的hash key表中,然后初始化一些域，不过这里要注意，对应的变量的get/set回调，需要当这个函数返回之后，显式的设置,比如在split_clients模块中的例子:
 
 .. code:: c
 
