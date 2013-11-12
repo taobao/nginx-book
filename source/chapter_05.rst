@@ -188,7 +188,7 @@ process_header的重要职责是将后端服务器返回的状态翻译成返回
         u->headers_in.status_n = 404;
         u->state->status = 404;
 
-u->state用于计算upstream相关的变量。比如u->status->status将被用于计算变量“upstream_status”的值。u->headers_in将被作为返回给客户端的响应返回状态码。而第一行则是设置返回给客户端的响应的长度。
+u->state用于计算upstream相关的变量。比如u->state->status将被用于计算变量“upstream_status”的值。u->headers_in将被作为返回给客户端的响应返回状态码。而第一行则是设置返回给客户端的响应的长度。
 
 在这个函数中不能忘记的一件事情是处理完头部信息以后需要将读指针pos后移，否则这段数据也将被复制到返回给客户端的响应的正文中，进而导致正文内容不正确。
 
