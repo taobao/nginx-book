@@ -264,11 +264,10 @@ ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
 
    void ngx_strlow(u_char *dst, u_char *src, size_t n);
 
-将src的前n个字符转换成小写存放在dst字符串当中，调用者需要保证dst指向的空间大于等于n。操作不会对原字符串产生变动。如要更改原字符串，可以：
+将src的前n个字符转换成小写存放在dst字符串当中，调用者需要保证dst指向的空间大于等于n，且指向的空间必须可写。操作不会对原字符串产生变动。如要更改原字符串，可以：
 
 .. code:: c
 
-    ngx_str_t str = ngx_string("hello world");
     ngx_strlow(str->data, str->data, str->len);
 
 
