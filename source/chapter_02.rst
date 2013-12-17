@@ -56,7 +56,7 @@ nginx在启动后，在unix系统中会以daemon的方式在后台运行，后�
             task t;
             if (events[i].type == READ) {
                 t.handler = read_handler;
-            } else (events[i].type == WRITE) {
+            } elif (events[i].type == WRITE) {
                 t.handler = write_handler;
             }
             run_tasks_add(t);
