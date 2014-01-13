@@ -1446,7 +1446,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 
 从nginx的内部来看，一个HTTP Request的处理过程涉及到以下几个阶段。
 
-#) 初始化HTTP Request（读取来自客户端的数据，生成HTTP Requst对象，该对象含有该请求所有的信息）。
+#) 初始化HTTP Request（读取来自客户端的数据，生成HTTP Request对象，该对象含有该请求所有的信息）。
 #) 处理请求头。
 #) 处理请求体。
 #) 如果有的话，调用与此请求（URL或者Location）关联的handler
