@@ -1449,7 +1449,7 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 #) 初始化HTTP Request（读取来自客户端的数据，生成HTTP Request对象，该对象含有该请求所有的信息）。
 #) 处理请求头。
 #) 处理请求体。
-#) 如果有的话，调用与此请求（URL或者Location）关联的handler
+#) 如果有的话，调用与此请求（URL或者Location）关联的handler。
 #) 依次调用各phase handler进行处理。
 
 在这里，我们需要了解一下phase handler这个概念。phase字面的意思，就是阶段。所以phase handlers也就好理解了，就是包含若干个处理阶段的一些handler。
@@ -1462,8 +1462,8 @@ worker进程中，ngx_worker_process_cycle()函数就是这个无限循环的处
 
 #) 获取location配置。
 #) 产生适当的响应。
-#) 发送response header.
-#) 发送response body.
+#) 发送response header。
+#) 发送response body。
 
 
 当nginx读取到一个HTTP Request的header的时候，nginx首先查找与这个请求关联的虚拟主机的配置。如果找到了这个虚拟主机的配置，那么通常情况下，这个HTTP Request将会经过以下几个阶段的处理（phase handlers）：
