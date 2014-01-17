@@ -760,7 +760,7 @@ config文件的编写
 编译
 ~~~~~~~~~~~~~~~~~~
 
-对于模块的编译，nginx并不像apache一样，提供了单独的编译工具，可以在没有nginx源代码的情况下来单独编译一个模块的代码。nginx必须去到nginx的源代码目录里，通过configure指令的参数，来进行编译。下面看一下hello module的configure指令：
+对于模块的编译，nginx并不像apache一样，提供了单独的编译工具，可以在没有apache源代码的情况下来单独编译一个模块的代码。nginx必须去到nginx的源代码目录里，通过configure指令的参数，来进行编译。下面看一下hello module的configure指令：
         
 ./configure --prefix=/usr/local/nginx-1.3.1 --add-module=/home/jizhao/open_source/book_module
 
