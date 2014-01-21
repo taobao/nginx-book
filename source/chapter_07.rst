@@ -36,7 +36,7 @@
                 #define NGX_HTTP_VAR_INDEXED      4
                 #define NGX_HTTP_VAR_NOHASH       8
 
-1. NGX_HTTP_VAR_CHANGEABLE表示这个变量是可变的,比如arg_xxx这类变量，如果你使用set指令来修改，那么Nginx就会报错.
+1. NGX_HTTP_VAR_CHANGEABLE表示这个变量是可变的.Nginx有很多内置变量是不可变的，比如arg_xxx这类变量，如果你使用set指令来修改，那么Nginx就会报错.
 2. NGX_HTTP_VAR_NOCACHEABLE表示这个变量每次都要去取值，而不是直接返回上次cache的值(配合对应的接口).
 3. NGX_HTTP_VAR_INDEXED表示这个变量是用索引读取的.
 4. NGX_HTTP_VAR_NOHASH表示这个变量不需要被hash.
