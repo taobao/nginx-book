@@ -128,7 +128,7 @@ Nginx的内部变量指的就是Nginx的官方模块中所导出的变量，在N
 他们的区别是这样子的，ngx_http_get_indexed_variable和ngx_http_get_flushed_variable都是用来取得有索引的变量，不过他们的区别是后一个会处理
 NGX_HTTP_VAR_NOCACHEABLE这个标记，也就是说如果你想要cache你的变量值，那么你的变量属性就不能设置NGX_HTTP_VAR_NOCACHEABLE,并且通过ngx_http_get_flushed_variable来获取变量值.而ngx_http_get_variable和上面的区别就是它能够得到没有索引的变量值.
 
-通过上面我们知道可以通过索引来得到变量值，可是这个索引改如何取得呢，Nginx也提供了对应的接口：
+通过上面我们知道可以通过索引来得到变量值，可是这个索引该如何取得呢，Nginx也提供了对应的接口：
 
 .. code:: c
 
