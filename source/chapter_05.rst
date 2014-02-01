@@ -49,9 +49,9 @@ upstream模块接口
 memcached模块分析
 ++++++++++++++++++++++++++++++
 
-memcache是一款高性能的分布式cache系统，得到了非常广泛的应用。memcache定义了一套私有通信协议，使得不能通过HTTP请求来访问memcache。但协议本身简单高效，而且memcache使用广泛，所以大部分现代开发语言和平台都提供了memcache支持，方便开发者使用memcache。
+memcached是一款高性能的分布式cache系统，得到了非常广泛的应用。memcached定义了一套私有通信协议，使得不能通过HTTP请求来访问memcached。但协议本身简单高效，而且memcached使用广泛，所以大部分现代开发语言和平台都提供了memcached支持，方便开发者使用memcache。
 
-nginx提供了ngx_http_memcached模块，提供从memcache读取数据的功能，而不提供向memcache写数据的功能。作为web服务器，这种设计是可以接受的。
+nginx提供了ngx_http_memcached模块，提供从memcached读取数据的功能，而不提供向memcached写数据的功能。作为web服务器，这种设计是可以接受的。
 
 下面，我们开始分析ngx_http_memcached模块，一窥upstream的奥秘。
 
@@ -172,7 +172,7 @@ Upstream模块！
             goto found;
         }
 
-如果在已读入缓冲的数据中没有发现LF('\n')字符，函数返回NGX_AGAIN，表示头部未完全读入，需要继续读取数据。nginx在收到新的数据以后会再次调用该函数。
+如果在已读入缓冲的数据中没有发现LF('\\n')字符，函数返回NGX_AGAIN，表示头部未完全读入，需要继续读取数据。nginx在收到新的数据以后会再次调用该函数。
 
 nginx处理后端服务器的响应头时只会使用一块缓存，所有数据都在这块缓存中，所以解析头部信息时不需要考虑头部信息跨越多块缓存的情况。而如果头部过大，不能保存在这块缓存中，nginx会返回错误信息给客户端，并记录error log，提示缓存不够大。
 
