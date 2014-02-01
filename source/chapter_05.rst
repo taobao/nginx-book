@@ -49,7 +49,7 @@ upstream模块接口
 memcached模块分析
 ++++++++++++++++++++++++++++++
 
-memcached是一款高性能的分布式cache系统，得到了非常广泛的应用。memcached定义了一套私有通信协议，使得不能通过HTTP请求来访问memcached。但协议本身简单高效，而且memcached使用广泛，所以大部分现代开发语言和平台都提供了memcached支持，方便开发者使用memcache。
+memcached是一款高性能的分布式cache系统，得到了非常广泛的应用。memcached定义了一套私有通信协议，使得不能通过HTTP请求来访问memcached。但协议本身简单高效，而且memcached使用广泛，所以大部分现代开发语言和平台都提供了memcached支持，方便开发者使用memcached。
 
 nginx提供了ngx_http_memcached模块，提供从memcached读取数据的功能，而不提供向memcached写数据的功能。作为web服务器，这种设计是可以接受的。
 
@@ -163,7 +163,7 @@ Upstream模块！
 
 4\. ngx_http_memcached_finalize_request：无需额外操作。
 
-5\. ngx_http_memcached_process_header：模块的业务重点函数。memcache协议的头部信息被定义为第一行文本，可以找到这段代码证明：
+5\. ngx_http_memcached_process_header：模块的业务重点函数。memcached协议的头部信息被定义为第一行文本，可以找到这段代码证明：
 
 .. code:: c
 
