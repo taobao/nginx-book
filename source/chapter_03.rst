@@ -610,9 +610,9 @@ handler的编写步骤
 	 
 		/* set the 'Content-type' header */
 		/*
-		r->headers_out.content_type_len = sizeof("text/html") - 1;
-		r->headers_out.content_type.len = sizeof("text/html") - 1;
-		r->headers_out.content_type.data = (u_char *)"text/html";*/
+		 *r->headers_out.content_type.len = sizeof("text/html") - 1;
+		 *r->headers_out.content_type.data = (u_char *)"text/html";
+                 */
 		ngx_str_set(&r->headers_out.content_type, "text/html");
 		
 	 
