@@ -401,7 +401,7 @@ handler模块真正的处理函数通过两种方式挂载到处理过程中，�
 - NGX_HTTP_TRY_FILES_PHASE
 
 
-所以其实真正是有6个phase你可以去挂载handler。
+所以其实真正是有7个phase你可以去挂载handler。
 
 挂载的代码如下（摘自hello module）:
 
