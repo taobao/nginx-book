@@ -215,7 +215,7 @@ ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
 .. code:: c
 
     ngx_str_t str = ngx_string("hello world");
-    ngx_str_t str1 = ngx_null_string();
+    ngx_str_t str1 = ngx_null_string;
 
 如果向下面这样使用，就会有问题，这里涉及到c语言中对结构体变量赋值操作的语法规则，在此不做介绍。
 
