@@ -1,11 +1,9 @@
-nginx的请求处理阶段 (30%)
+nginx的请求处理阶段 (90%)
 =======================================
-
 
 
 接收请求流程 (99%)
 -----------------------
-
 
 
 http请求格式简介 (99%)
@@ -222,7 +220,7 @@ ngx_http_process_request_line函数的主要作用即是解析请求行，同样
 
 内存拷贝是一个相对比较昂贵的操作，大量的内存拷贝会带来较低的运行时效率。nginx在需要做内存拷贝的地方尽量只拷贝内存的起始和结束地址而不是内存本身，这样做的话仅仅只需要两个赋值操作而已，大大降低了开销，当然这样带来的影响是后续的操作不能修改内存本身，如果修改的话，会影响到所有引用到该内存区间的地方，所以必须很小心的管理，必要的时候需要拷贝一份。
 
-这里不得不提到nginx中最能体现这一思想的数据结构，ngx_buf_t，它用来表示nginx中的缓存，在很多情况下，只需要将一块内存的起始地址和结束地址分别保存在它的pos和last成员中，再将它的memory标志置1，即可表示一块不能修改的内存区间，在另外的需要一块能够修改的缓存的情形中，则必须分配一块所需大小的内存并保存其起始地址，再将ngx_bug_t的temprary标志置1，表示这是一块能够被修改的内存区域。
+这里不得不提到nginx中最能体现这一思想的数据结构，ngx_buf_t，它用来表示nginx中的缓存，在很多情况下，只需要将一块内存的起始地址和结束地址分别保存在它的pos和last成员中，再将它的memory标志置1，即可表示一块不能修改的内存区间，在另外的需要一块能够修改的缓存的情形中，则必须分配一块所需大小的内存并保存其起始地址，再将ngx_buf_t的temporary标志置1，表示这是一块能够被修改的内存区域。
 
 再回到ngx_http_process_request_line函数中，如果ngx_http_parse_request_line函数返回了错误，则直接给客户端返回400错误；
 如果返回NGX_AGAIN，则需要判断一下是否是由于缓冲区空间不够，还是已读数据不够。如果是缓冲区大小不够了，nginx会调用ngx_http_alloc_large_header_buffer函数来分配另一块大缓冲区，如果大缓冲区还不够装下整个请求行，nginx则会返回414错误给客户端，否则分配了更大的缓冲区并拷贝之前的数据之后，继续调用ngx_http_read_request_header函数读取数据来进入请求行自动机处理，直到请求行解析结束；
@@ -1179,84 +1177,1413 @@ nginx按请求处理的执行顺序将处理流程划分为多个阶段，一般
 
 SERVER_REWRITE阶段的节点的next域指向FIND_CONFIG阶段的第1个节点，REWRITE阶段的next域指向POST_REWRITE阶段的第1个节点，而POST_REWRITE阶段的next域则指向FIND_CONFIG，因为当出现location级别的uri重写时，可能需要重新匹配新的location，PREACCESS阶段的next域指向ACCESS域，ACCESS和POST_ACCESS阶段的next域则是则是指向CONTENT阶段，当然如果TRY_FILES阶段存在的话，则是指向TRY_FILES阶段，最后CONTENT阶段的next域指向LOG阶段，当然next域是每个阶段的checker函数根据该阶段的需求来使用的，没有需要时，checker函数可能都不会使用到它。
 
+
 POST_READ阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 POST_READ阶段是nginx处理请求流程中第一个可以添加模块函数的阶段，任何需要在接收完请求头之后立刻处理的逻辑可以在该阶段注册处理函数。nginx源码中只有realip模块在该阶段注册了函数，当nginx前端多了一个7层负载均衡层，并且客户端的真实ip被前端保存在请求头中时，该模块用来将客户端的ip替换为请求头中保存的值。realip模块之所以在POST_READ阶段执行的原因是它需要在其他模块执行之前悄悄的将客户端ip替换为真实值，而且它需要的信息仅仅只是请求头。一般很少有模块需要注册在POST_READ阶段，realip模块默认没有编译进nginx。
 
-find-config阶段
+POST_READ阶段的checker函数是ngx_http_core_generic_phase，这个函数是nginx phase默认的checker函数，后面的PREACCESS phase也是用checker，下面对它做一下介绍：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_generic_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
+    {
+        ngx_int_t  rc;
+
+        /*
+         * generic phase checker,
+         * used by the post read and pre-access phases
+         */
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "generic phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc == NGX_OK) {
+            r->phase_handler = ph->next;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_DECLINED) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_AGAIN || rc == NGX_DONE) {
+            return NGX_OK;
+        }
+
+        /* rc == NGX_ERROR || rc == NGX_HTTP_...  */
+
+        ngx_http_finalize_request(r, rc);
+
+        return NGX_OK;
+    }
+
+这个函数逻辑非常简单，调用该phase注册的handler函数，需要注意的是该函数对handler返回值的处理，一般而言handler返回：
+
+:NGX_OK: 表示该阶段已经处理完成，需要转入下一个阶段；
+
+:NG_DECLINED: 表示需要转入本阶段的下一个handler继续处理；
+
+:NGX_AGAIN, NGX_DONE: 表示需要等待某个事件发生才能继续处理（比如等待网络IO），此时Nginx为了不阻塞其他请求的处理，必须中断当前请求的执行链，等待事件发生之后继续执行该handler；
+
+:NGX_ERROR: 表示发生了错误，需要结束该请求。
+
+checker函数根据handler函数的不同返回值，给上一层的ngx_http_core_run_phases函数返回NGX_AGAIN或者NGX_OK，如果期望上一层继续执行后面的phase则需要确保checker函数不是返回NGX_OK，不同checker函数对handler函数的返回值处理还不太一样，开发模块时需要确保相应阶段的checker函数对返回值的处理在你的预期之内。
+
+
+SERVER_REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+SERVER_REWRITE阶段是nginx中第一个必须经历的重要phase，请求进入此阶段时已经找到对应的虚拟主机（server）配置。nginx的rewrite模块在这个阶段注册了一个handler，rewrite模块提供url重写指令rewrite，变量设置指令set，以及逻辑控制指令if、break和return，用户可以在server配置里面，组合这些指令来满足自己的需求，而不需要另外写一个模块，比如将一些前缀满足特定模式的uri重定向到一个固定的url，还可以根据请求的属性来决定是否需要重写或者给用户发送特定的返回码。rewrite提供的逻辑控制指令能够满足一些简单的需求，针对一些较复杂的逻辑可能需要注册handler通过独立实现模块的方式来满足。
+
+需要注意该阶段和后面的REWRITE阶段的区别，在SERVER_REWRITE阶段中，请求还未被匹配到一个具体的location中。该阶段执行的结果（比如改写后的uri）会影响后面FIND_CONFIG阶段的执行。另外这个阶段也是内部子请求执行的第一个阶段。
+SERVER_REWRITE阶段的checker函数是ngx_http_core_rewrite_phase：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_rewrite_phase(ngx_http_request_t *r, ngx_http_phase_handler_t *ph)
+    {
+        ngx_int_t  rc;
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "rewrite phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc == NGX_DECLINED) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        if (rc == NGX_DONE) {
+            return NGX_OK;
+        }
+
+        /* NGX_OK, NGX_AGAIN, NGX_ERROR, NGX_HTTP_...  */
+
+        ngx_http_finalize_request(r, rc);
+
+        return NGX_OK;
+    }
+
+这个函数和上面说的ngx_http_core_generic_phase函数流程基本一致，唯一的区别就是对handler返回值的处理稍有不同，比如这里对NGX_OK的处理是调用ngx_http_finalize_request结束请求，所以再强调一下，handler函数的返回值一定要根据不同phase的checker函数来设置。Nginx的rewrite模块会挂上一个名为ngx_http_rewrite_handler的handler。
 
 
-rewrite阶段
+FIND_CONFIG阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+FIND_CONFIG阶段顾名思义就是寻找配置阶段，具体一点就是根据uri查找location配置，实际上就是设置r->loc_conf，在此之前r->loc_conf使用的server级别的，查找location过程由函数ngx_http_core_find_location完成，具体查找流流程这里不再赘述，可以参考上一章关于location管理的内容，值得注意的是当ngx_http_core_find_location函数返回NGX_DONE时，Nginx会返回301，将用户请求做一个重定向，这种情况仅发生在该location使用了proxy_pass/fastcgi/scgi/uwsgi/memcached模块，且location的名字以/符号结尾，并且请求的uri为该location除/之外的前缀，比如对location /xx/，如果某个请求/xx访问到该location，则会被重定向为/xx/。另外Nginx中location可以标识为internal，即内部location，这种location只能由子请求或者内部跳转访问。
+
+找到location配置后，Nginx调用了ngx_http_update_location_config函数来更新请求相关配置，其中最重要的是更新请求的content handler，不同location可以有自己的content handler。
+
+最后，由于有REWRITE_PHASE的存在，FIND_CONFIG阶段可能会被执行多次。
 
 
-post-rewrite阶段
+REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+REWRITE阶段为location级别的重写，这个阶段的checker和SERVER_REWRITE阶段的是同一个函数，而且Nginx的rewrite模块对这2个阶段注册的是同一个handler，2者唯一区别就是执行时机不一样，REWRITE阶段为location级别的重写，SERVER_REWRITE执行之后是FIND_CONFIG阶段，REWRITE阶段执行之后是POST_REWRITE阶段。
 
 
-access阶段
+POST_REWRITE阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+该阶段不能注册handler，仅仅只是检查上一阶段是否做了uri重写，如果没有重写的话，直接进入下一阶段；如果有重写的话，则利用next跳转域往前跳转到FIND_CONFIG阶段重新执行。Nginx对uri重写次数做了限制，默认是10次。
 
 
-post-access阶段
+PREACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+进入该阶段表明Nginx已经将请求确定到了某一个location(当该server没有任何location时，也可能是server），如论如何请求的loc_conf配置已经确定下来，该阶段一般用来做资源控制，默认情况下，诸如ngx_http_limit_conn_module，ngx_http_limit_req_module等模块会在该阶段注册handler，用于控制连接数，请求速率等。PREACCESS阶段使用的checker是默认的ngx_http_core_generic_phase函数。
 
 
-content阶段
+ACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+该阶段的首要目的是做权限控制，默认情况下，Nginx的ngx_http_access_module和ngx_http_auth_basic_module模块分别会在该阶段注册一个handler。
+
+ACCESS阶段的checker是ngx_http_core_access_phase函数，此函数对handler返回值的处理大致和ngx_http_core_generic_phase一致，特殊的地方是当clcf->satisfy为NGX_HTTP_SATISFY_ALL，也就是需要满足该阶段注册的所有handler的验证时，某个handler返回NGX_OK时还需要继续处理本阶段的其他handler。clcf->satisfy的值可以使用satisfy指令指定。
 
 
-log阶段
+POST_ACCESS阶段
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+POST_ACCESS和POST_REWRITE阶段一样，只是处理一下上一阶段的结果，而不能挂载自己的handler，具体为如果ACCESS阶段返回了NGX_HTTP_FORBIDDEN或NGX_HTTP_UNAUTHORIZED（记录在r->access_code字段），该阶段会结束掉请求。
 
 
-返回响应数据
+TRY_FILES阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TRY_FILES阶段仅当配置了try_files指令时生效，实际上该指令不常用，它的功能是指定一个或者多个文件或目录，最后一个参数可以指定为一个location或一个返回码，当设置了该指令时，TRY_FILES阶段调用checker函数ngx_http_core_try_files_phase来依此检查指定的文件或目录是否存在，如果本地文件系统存在某个文件或目录则退出该阶段继续执行下面的阶段，否则内部重定向到最后一个参数指定的location或返回指定的返回码。
+
+该阶段也不能注册handler。
+
+
+CONTENT阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CONTENT阶段可以说是整个执行链中最重要的阶段，请求从这里开始执行业务逻辑并产生响应，下面来分析一下它的checker函数：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_core_content_phase(ngx_http_request_t *r,
+        ngx_http_phase_handler_t *ph)
+    {
+        size_t     root;
+        ngx_int_t  rc;
+        ngx_str_t  path;
+
+        if (r->content_handler) {
+            r->write_event_handler = ngx_http_request_empty_handler;
+            ngx_http_finalize_request(r, r->content_handler(r));
+            return NGX_OK;
+        }
+
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "content phase: %ui", r->phase_handler);
+
+        rc = ph->handler(r);
+
+        if (rc != NGX_DECLINED) {
+            ngx_http_finalize_request(r, rc);
+            return NGX_OK;
+        }
+
+        /* rc == NGX_DECLINED */
+
+        ph++;
+
+        if (ph->checker) {
+            r->phase_handler++;
+            return NGX_AGAIN;
+        }
+
+        /* no content handler was found */
+
+        if (r->uri.data[r->uri.len - 1] == '/') {
+
+            if (ngx_http_map_uri_to_path(r, &path, &root, 0) != NULL) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                              "directory index of \"%s\" is forbidden", path.data);
+            }
+
+            ngx_http_finalize_request(r, NGX_HTTP_FORBIDDEN);
+            return NGX_OK;
+        }
+
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "no handler found");
+
+        ngx_http_finalize_request(r, NGX_HTTP_NOT_FOUND);
+        return NGX_OK;
+    }
+
+CONTENT阶段有些特殊，它不像其他阶段只能执行固定的handler链，还有一个特殊的content_handler，每个location可以有自己独立的content handler，而且当有content handler时，CONTENT阶段只会执行content handler，不再执行本阶段的handler链。
+
+默认情况下，Nginx会在CONTENT阶段的handler链挂上index模块，静态文件处理模块等的handler。另外模块还可以设置独立的content handler，比如ngx_http_proxy_module的proxy_pass指令会设置一个名为ngx_http_proxy_handler的content handler。
+
+接下来看一下上面的checker函数的执行流程，首先检查是否设置了r->content_handler，如果设置了的话，则执行它，需要注意的是在执行它之前，Nginx将r->write_event_handler设置为了ngx_http_request_empty_handler，先看一下设置r->write_event_handler之前的值是什么，在ngx_http_handler函数中它被设置为ngx_http_core_run_phases，而ngx_http_core_run_phases会运行每个阶段的checker函数。正常流程中，如果某个阶段需要等待某个写事件发生时，该阶段的handler会返回NGX_OK来中断ngx_http_core_run_phases的运行，等到下次写事件过来时，会继续执行之前阶段的handler；当执行r->content_handler的流程时，Nginx默认模块会去处理r->write_event_handler的值，也就是假设r->content_handler只能执行1次，如果模块设置的content handler涉及到IO操作，就需要合理的设置处理读写事件的handler（r->read_event_handler和r->write_event_handler）。
+
+还有一个需要注意的点是r->content_handler执行之后，Nginx直接用其返回值调用了ngx_http_finalize_request函数，Nginx将一大堆耦合的逻辑都集中在了这个函数当中，包括长连接，lingering_close，子请求等的处理都涉及到该函数，后面会有一节单独介绍这个函数。这里需要提醒的是r->content_handler如果并未完成整个请求的处理，而只是需要等待某个事件发生而退出处理流程的话，必须返回一个合适的值传给ngx_http_finalize_request，一般而言是返回NGX_DONE，而且需要将请求的引用计数（r->count）加1，确保ngx_http_finalize_request函数不会将该请求释放掉。
+
+函数的其他部分处理走handler链的情况，特殊的地方是CONTENT阶段是ngx_http_core_run_phases函数跑的最后一个阶段，如果最后一个handler返回NGX_DECLINED，此时Nginx会给客户端返回NGX_HTTP_FORBIDDEN（403）或NGX_HTTP_NOT_FOUND（404）。
+
+
+LOG阶段
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LOG阶段主要的目的就是记录访问日志，进入该阶段表明该请求的响应已经发送到系统发送缓冲区。另外这个阶段的handler链实际上并不是在ngx_http_core_run_phases函数中执行，而是在释放请求资源的ngx_http_free_request函数中运行，这样做的原因实际是为了简化流程，因为ngx_http_core_run_phases可能会执行多次，而LOG阶段只需要再请求所有逻辑都结束时运行一次，所以在ngx_http_free_request函数中运行LOG阶段的handler链是非常好的选择。具体的执行的函数为ngx_http_log_request：
+
+.. code:: c
+
+    static void
+    ngx_http_log_request(ngx_http_request_t *r)
+    {
+        ngx_uint_t                  i, n;
+        ngx_http_handler_pt        *log_handler;
+        ngx_http_core_main_conf_t  *cmcf;
+
+        cmcf = ngx_http_get_module_main_conf(r, ngx_http_core_module);
+
+        log_handler = cmcf->phases[NGX_HTTP_LOG_PHASE].handlers.elts;
+        n = cmcf->phases[NGX_HTTP_LOG_PHASE].handlers.nelts;
+
+        for (i = 0; i < n; i++) {
+            log_handler[i](r);
+        }
+    }
+
+函数非常简单，仅仅是遍历LOG阶段的handler链，逐一执行，而且不会检查返回值。LOG阶段和其他阶段的不同点有两个，一是执行点是在ngx_http_free_request中，二是这个阶段的所有handler都会被执行。
+
+至此，Nginx请求处理的多阶段执行链的各个阶段都已经介绍完毕，弄清楚每个阶段的执行时机以及每个阶段的不同特点对写模块非常重要。
+
+
+Nginx filter
 -----------------------
 
+在CONTENT阶段产生的数据被发往客户端（系统发送缓存区）之前，会先经过过滤。Nginx的filter的工作方式和做鱼有些类似。比如一条鱼，可以把它切成鱼片（也可以切块，切泥），然后通过不同的烹饪方法就得到水煮鱼或者日式生鱼片或者废了等等。同样是一条鱼，加工得到的结果却截然不同，就是因为中间不同的工序赋予了这条鱼各种属性。Nginx的filter也是一个道理，前面的Handler好比这条鱼，filter负责加工，最后得到的HTTP响应就会各种各样，格式可以是JSON或者YAML，内容可能多一些或者少一些，HTTP属性可各异，可以选择压缩，甚至内容可以被丢弃。
+
+对应HTTP请求的响应头和响应体，Nginx分别设置了header filter和body filter。两种机制都是采用链表的方式，不同过滤模块对应链表的一个节点，一般而言一个模块会同时注册header filter和body filter。一个典型的filter模块，比如gzip模块使用类似如下的代码来注册：
+
+.. code:: c
+
+    static ngx_http_output_header_filter_pt  ngx_http_next_header_filter;
+    static ngx_http_output_body_filter_pt    ngx_http_next_body_filter;
+
+    ...
+       
+    static ngx_int_t
+    ngx_http_gzip_filter_init(ngx_conf_t *cf)
+    {
+        ngx_http_next_header_filter = ngx_http_top_header_filter;
+        ngx_http_top_header_filter = ngx_http_gzip_header_filter;
+
+        ngx_http_next_body_filter = ngx_http_top_body_filter;
+        ngx_http_top_body_filter = ngx_http_gzip_body_filter;
+
+        return NGX_OK;
+    }
+
+上面的代码中，gzip模块首先在模块的开头声明了两个static类型的全局变量ngx_http_next_header_filter和ngx_http_next_body_filter，在ngx_http_gzip_filter_init函数中，这二个变量分别被赋值为ngx_http_top_header_filter及ngx_http_top_body_filter。而后二者定义在ngx_http.c，并在ngx_http.h头文件中被导出。ngx_http_top_header_filter和ngx_http_top_body_filter实际上是filter链表的头结点，每次注册一个新的filter模块时，它们的值先被保存在新模块的内部全局变量ngx_http_next_header_filter及ngx_http_next_body_filter，然后被赋值为新模块注册的filter函数，而且Nginx filter是先从头节点开始执行，所以越晚注册的模块越早执行。
+
+采用默认编译选项，Nginx默认编译的模块如下：
+
+.. code:: c
+
+    ngx_module_t *ngx_modules[] = {
+        &ngx_core_module,
+        &ngx_errlog_module,
+        &ngx_conf_module,
+        &ngx_events_module,
+        &ngx_event_core_module,
+        &ngx_epoll_module,
+        &ngx_regex_module,
+        &ngx_http_module,
+        &ngx_http_core_module,
+        &ngx_http_log_module,
+        &ngx_http_upstream_module,
+        &ngx_http_static_module,
+        &ngx_http_autoindex_module,
+        &ngx_http_index_module,
+        &ngx_http_auth_basic_module,
+        &ngx_http_access_module,
+        &ngx_http_limit_conn_module,
+        &ngx_http_limit_req_module,
+        &ngx_http_geo_module,
+        &ngx_http_map_module,
+        &ngx_http_split_clients_module,
+        &ngx_http_referer_module,
+        &ngx_http_rewrite_module,
+        &ngx_http_proxy_module,
+        &ngx_http_fastcgi_module,
+        &ngx_http_uwsgi_module,
+        &ngx_http_scgi_module,
+        &ngx_http_memcached_module,
+        &ngx_http_empty_gif_module,
+        &ngx_http_browser_module,
+        &ngx_http_upstream_ip_hash_module,
+        &ngx_http_upstream_keepalive_module,
+        &ngx_http_write_filter_module,          /* 最后一个body filter，负责往外发送数据 */
+        &ngx_http_header_filter_module,         /* 最后一个header filter，负责在内存中拼接出完整的http响应头，
+                                                   并调用ngx_http_write_filter发送 */
+        &ngx_http_chunked_filter_module,        /* 对响应头中没有content_length头的请求，强制短连接（低于http 1.1）
+                                                   或采用chunked编码（http 1.1) */
+        &ngx_http_range_header_filter_module,   /* header filter，负责处理range头 */
+        &ngx_http_gzip_filter_module,           /* 支持流式的数据压缩 */
+        &ngx_http_postpone_filter_module,       /* body filter，负责处理子请求和主请求数据的输出顺序 */
+        &ngx_http_ssi_filter_module,            /* 支持过滤SSI请求，采用发起子请求的方式，去获取include进来的文件 */
+        &ngx_http_charset_filter_module,        /* 支持添加charset，也支持将内容从一种字符集转换到另外一种字符集 */
+        &ngx_http_userid_filter_module,         /* 支持添加统计用的识别用户的cookie */
+        &ngx_http_headers_filter_module,        /* 支持设置expire和Cache-control头，支持添加任意名称的头 */
+        &ngx_http_copy_filter_module,           /* 根据需求重新复制输出链表中的某些节点
+                                                  （比如将in_file的节点从文件读出并复制到新的节点），并交给后续filter
+                                                   进行处理 */
+        &ngx_http_range_body_filter_module,     /* body filter，支持range功能，如果请求包含range请求，
+                                                   那就只发送range请求的一段内容 */
+        &ngx_http_not_modified_filter_module,   /* 如果请求的if-modified-since等于回复的last-modified值，
+                                                   说明回复没有变化，清空所有回复的内容，返回304 */ 
+        NULL
+    };
+
+从模块的命名可以很容易看出哪些模块是filter模块，一般而言Nginx的filter模块名以filter_module结尾，普通的模块名以module结尾。上面的列表从下往上看，ngx_http_not_modified_filter_module实际上filter链的第一个节点，而ngx_http_write_filter_module是最后一个节点。filter模块的执行顺序特别重要，比如数据经过gzip模块后就变成了压缩之后的数据，如果在gzip模块后面运行的filter模块需要再查看数据的原始内容就不可能了（除非再做解压），第三方模块会被Nginx注册在ngx_http_copy_filter_module之后，ngx_http_headers_filter_module之前。这样设定的原因是为了确保一些模块比如gzip filter，chunked filter，copy filter运行在filter链的开头或尾部。
 
 
 header filter分析
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+通常Nginx调用ngx_http_send_header函数来发送响应头，看下它的实现：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_send_header(ngx_http_request_t *r)
+    {
+        if (r->err_status) {
+            r->headers_out.status = r->err_status;
+            r->headers_out.status_line.len = 0;
+        }
+
+        return ngx_http_top_header_filter(r);
+    }
+
+上面的代码中调用了ngx_http_top_header_filter，也就是header  filter的头节点，按照上一节介绍的顺序，ngx_http_not_modified_filter_module是最后一个注册的filter模块，而最后定义的会最先执行，初始化之后，它实际上是ngx_http_not_modified_header_filter函数：
+
+.. code:: c
+
+    static ngx_int_t
+    ngx_http_not_modified_header_filter(ngx_http_request_t *r)
+    {
+        if (r->headers_out.status != NGX_HTTP_OK
+            || r != r->main
+            || r->headers_out.last_modified_time == -1)
+        {
+            return ngx_http_next_header_filter(r);
+        }
+
+        if (r->headers_in.if_unmodified_since) {
+            return ngx_http_test_precondition(r);
+        }
+
+        if (r->headers_in.if_modified_since) {
+            return ngx_http_test_not_modified(r);
+        }
+
+        return ngx_http_next_header_filter(r);
+    }
+
+而在ngx_http_not_modified_header_filter函数中，它会调用模块内部定义的函数指针变量ngx_http_next_header_filter，而该变量保存的是上一模块注册的header filter函数，同样的下一个header filter函数内部也会调用其模块内部的ngx_http_next_header_filter，直到调用到最后一个header filter - ngx_http_header_filter。
+
+ngx_http_header_filter，这个filter负责计算响应头的总大小，并分配内存，组装响应头，并调用ngx_http_write_filter发送。Nginx中，header filter只会被调用一次，ngx_http_header_filter函数中首先会检查r->header_sent标识是否已经被设置，如果是的话，则直接返回；否则设置该标识，并发送响应头。另外如果是子请求的话，也会直接退出函数。
 
 
 body filter分析
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Nginx中通常调用ngx_http_output_filter函数来发送响应体，它的实现如下：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_output_filter(ngx_http_request_t *r, ngx_chain_t *in)
+    {
+        ngx_int_t          rc;
+        ngx_connection_t  *c;
+
+        c = r->connection;
+
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
+                       "http output filter \"%V?%V\"", &r->uri, &r->args);
+
+        rc = ngx_http_top_body_filter(r, in);
+
+        if (rc == NGX_ERROR) {
+            /* NGX_ERROR may be returned by any filter */
+            c->error = 1;
+        }
+
+        return rc;
+    }
+
+body filter链调用的原理和header filter一样，和ngx_http_send_header函数不同的是，上面的函数多了一个类型为ngx_chain_t *的参数，因为Nginx实现的是流式的输出，并不用等到整个响应体都生成了才往客户端发送数据，而是产生一部分内容之后将其组织成链表，调用ngx_http_output_filter发送，并且待发送的内容可以在文件中，也可以是在内存中，Nginx会负责将数据流式的，高效的传输出去。而且当发送缓存区满了时，Nginx还会负责保存未发送完的数据，调用者只需要对新数据调用一次ngx_http_output_filter即可。
 
 
-finalize_request函数分析
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+ngx_http_copy_filter_module分析
+++++++++++++++++++++++++++++++++++
+
+ngx_http_copy_filter_module是响应体过滤链（body filter）中非常重要的一个模块，这个filter模块主要是来将一些需要复制的buf（可能在文件中，也可能在内存中）重新复制一份交给后面的filter模块处理。先来看它的初始化函数： 
+
+.. code:: c
+
+    static ngx_int_t
+    ngx_http_copy_filter_init(ngx_conf_t *cf)
+    {
+        ngx_http_next_body_filter = ngx_http_top_body_filter;
+        ngx_http_top_body_filter = ngx_http_copy_filter;
+
+        return NGX_OK;
+    }
 
 
+可以看到，它只注册了body filter，而没有注册header filter，也就是说只有body filter链中才有这个模块。
 
-特殊响应
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+该模块有一个命令，命令名为output_buffers，用来配置可用的buffer数和buffer大小，它的值保存在copy filter的loc conf的bufs字段，默认数量为1，大小为32768字节。这个参数具体的作用后面会做介绍。
+
+Nginx中，一般filter模块可以header filter函数中根据请求响应头设置一个模块上下文（context），用来保存相关的信息，在body filter函数中使用这个上下文。而copy filter没有header filter，因此它的context的初始化也是放在body filter中的，而它的ctx就是ngx_output_chain_ctx_t，为什么名字是output_chain呢，这是因为copy filter的主要逻辑的处理都放在ngx_output_chain模块中，另外这个模块在core目录下，而不是属于http目录。
+
+接下来看一下上面说到的context结构：
+
+.. code:: c
+
+    struct ngx_output_chain_ctx_s {
+        ngx_buf_t                   *buf;              /* 保存临时的buf */
+        ngx_chain_t                 *in;               /* 保存了将要发送的chain */
+        ngx_chain_t                 *free;             /* 保存了已经发送完毕的chain，以便于重复利用 */
+        ngx_chain_t                 *busy;             /* 保存了还未发送的chain */
+
+        unsigned                     sendfile:1;       /* sendfile标记 */
+        unsigned                     directio:1;       /* directio标记 */
+    #if (NGX_HAVE_ALIGNED_DIRECTIO)
+        unsigned                     unaligned:1;
+    #endif
+        unsigned                     need_in_memory:1; /* 是否需要在内存中保存一份(使用sendfile的话，
+                                                          内存中没有文件的拷贝的，而我们有时需要处理文件，
+                                                          此时就需要设置这个标记) */
+        unsigned                     need_in_temp:1;   /* 是否需要在内存中重新复制一份，不管buf是在内存还是文件,
+                                                          这样的话，后续模块可以直接修改这块内存 */
+    #if (NGX_HAVE_FILE_AIO)
+        unsigned                     aio:1;
+
+        ngx_output_chain_aio_pt      aio_handler;
+    #endif
+
+        off_t                        alignment;
+
+        ngx_pool_t                  *pool;
+        ngx_int_t                    allocated;        /* 已经分别的buf个数 */
+        ngx_bufs_t                   bufs;             /* 对应loc conf中设置的bufs */
+        ngx_buf_tag_t                tag;              /* 模块标记，主要用于buf回收 */
+
+        ngx_output_chain_filter_pt   output_filter;    /* 一般是ngx_http_next_filter,也就是继续调用filter链 */
+        void                        *filter_ctx;       /* 当前filter的上下文，
+                                                          这里是由于upstream也会调用output_chain */
+    };
+
+为了更好的理解context结构每个域的具体含义，接下来分析filter的具体实现：
+
+.. code:: c
+
+    static ngx_int_t
+    ngx_http_copy_filter(ngx_http_request_t *r, ngx_chain_t *in)
+    {
+        ngx_int_t                     rc;
+        ngx_connection_t             *c;
+        ngx_output_chain_ctx_t       *ctx;
+        ngx_http_core_loc_conf_t     *clcf;
+        ngx_http_copy_filter_conf_t  *conf;
+
+        c = r->connection;
+
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, c->log, 0,
+                       "http copy filter: \"%V?%V\"", &r->uri, &r->args);
+        
+        /* 获取ctx */
+        ctx = ngx_http_get_module_ctx(r, ngx_http_copy_filter_module);
+        
+        /* 如果为空，则说明需要初始化ctx */
+        if (ctx == NULL) {
+            ctx = ngx_pcalloc(r->pool, sizeof(ngx_output_chain_ctx_t));
+            if (ctx == NULL) {
+                return NGX_ERROR;
+            }
+
+            ngx_http_set_ctx(r, ctx, ngx_http_copy_filter_module);
+
+            conf = ngx_http_get_module_loc_conf(r, ngx_http_copy_filter_module);
+            clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+
+            /* 设置sendfile */
+            ctx->sendfile = c->sendfile;
+            /* 如果request设置了filter_need_in_memory的话，ctx的这个域就会被设置 */
+            ctx->need_in_memory = r->main_filter_need_in_memory
+                                  || r->filter_need_in_memory;
+            /* 和上面类似 */
+            ctx->need_in_temp = r->filter_need_temporary;
+
+            ctx->alignment = clcf->directio_alignment;
+
+            ctx->pool = r->pool;
+            ctx->bufs = conf->bufs;
+            ctx->tag = (ngx_buf_tag_t) &ngx_http_copy_filter_module;
+            /* 可以看到output_filter就是下一个body filter节点 */
+            ctx->output_filter = (ngx_output_chain_filter_pt)
+                                      ngx_http_next_body_filter;
+            /* 此时filter ctx为当前的请求 */
+            ctx->filter_ctx = r;
+
+        ...
+
+            if (in && in->buf && ngx_buf_size(in->buf)) {
+                r->request_output = 1;
+            }
+        }
+
+        ...
+
+        for ( ;; ) {
+            /* 最关键的函数，下面会详细分析 */
+            rc = ngx_output_chain(ctx, in);
+
+            if (ctx->in == NULL) {
+                r->buffered &= ~NGX_HTTP_COPY_BUFFERED;
+
+            } else {
+                r->buffered |= NGX_HTTP_COPY_BUFFERED;
+            }
+
+            ...
+
+            return rc;
+        }
+    }
+
+上面的代码去掉了AIO相关的部分，函数首先设置并初始化context，接着调用ngx_output_chain函数，这个函数实际上包含了copy filter模块的主要逻辑，它的原型为：
+
+.. code:: c
+
+ngx_int_t
+ngx_output_chain(ngx_output_chain_ctx_t *ctx, ngx_chain_t *in)
+
+分段来看它的代码，下面这段代码是一个快捷路径（short path），也就是说当能直接确定所有的in chain都不需要复制的时，可以直接调用output_filter来交给剩下的filter去处理：
+
+.. code:: c
+
+    if (ctx->in == NULL && ctx->busy == NULL) {
+
+        /*
+         * the short path for the case when the ctx->in and ctx->busy chains
+         * are empty, the incoming chain is empty too or has the single buf
+         * that does not require the copy
+         */
+
+        if (in == NULL) {
+            return ctx->output_filter(ctx->filter_ctx, in);
+        }
+
+        if (in->next == NULL
+    #if (NGX_SENDFILE_LIMIT)
+                && !(in->buf->in_file && in->buf->file_last > NGX_SENDFILE_LIMIT)
+    #endif
+            && ngx_output_chain_as_is(ctx, in->buf))
+        {
+            return ctx->output_filter(ctx->filter_ctx, in);
+        }
+    }
+
+上面可以看到了一个函数ngx_output_chain_as_is，这个函数很关键，下面还会再次被调用，这个函数主要用来判断是否需要复制buf。返回1,表示不需要拷贝，否则为需要拷贝：
+
+.. code:: c
+
+    static ngx_inline ngx_int_t
+    ngx_output_chain_as_is(ngx_output_chain_ctx_t *ctx, ngx_buf_t *buf)
+    {
+        ngx_uint_t  sendfile;
+
+        /* 是否为特殊buf（special buf），是的话返回1，也就是不用拷贝 */
+        if (ngx_buf_special(buf)) {
+            return 1;
+        }
+
+        /* 如果buf在文件中，并且使用了directio的话，需要拷贝buf */
+        if (buf->in_file && buf->file->directio) {
+            return 0;
+        }
+
+        /* sendfile标记 */
+        sendfile = ctx->sendfile;
+
+    #if (NGX_SENDFILE_LIMIT)
+        /* 如果pos大于sendfile的限制，设置标记为0 */
+        if (buf->in_file && buf->file_pos >= NGX_SENDFILE_LIMIT) {
+            sendfile = 0;
+        }
+
+    #endif
+
+        if (!sendfile) {
+            /* 如果不走sendfile，而且buf不在内存中，则我们就需要复制到内存一份 */
+            if (!ngx_buf_in_memory(buf)) {
+                return 0;
+            }
+
+            buf->in_file = 0;
+        }
+
+        /* 如果需要内存中有一份拷贝，而并不在内存中，此时返回0，表示需要拷贝 */
+        if (ctx->need_in_memory && !ngx_buf_in_memory(buf)) {
+            return 0;
+        }
+
+        /* 如果需要内存中有可修改的拷贝，并且buf存在于只读的内存中或者mmap中，则返回0 */ 
+        if (ctx->need_in_temp && (buf->memory || buf->mmap)) {
+            return 0;
+        }
+
+        return 1;
+    }
+
+上面有两个标记要注意，一个是need_in_memory ，这个主要是用于当使用sendfile的时候，Nginx并不会将请求文件拷贝到内存中，而有时需要操作文件的内容，此时就需要设置这个标记。然后后面的body filter就能操作内容了。 
+
+第二个是need_in_temp，这个主要是用于把本来就存在于内存中的buf复制一份可修改的拷贝出来，这里有用到的模块有charset，也就是编解码 filter。
+
+然后接下来这段是复制in chain到ctx->in的结尾，它是通过调用ngx_output_chain_add_copy来进行add copy的，这个函数比较简单，这里就不分析了，不过只有一个要注意的地方，那就是如果buf是存在于文件中，并且file_pos超过了sendfile limit，此时就会切割buf为两个buf，然后保存在两个chain中，最终连接起来：
+
+.. code:: c
+
+    /* add the incoming buf to the chain ctx->in */
+
+    if (in) {
+        if (ngx_output_chain_add_copy(ctx->pool, &ctx->in, in) == NGX_ERROR) {
+            return NGX_ERROR;
+        }
+    }
+
+然后就是主要的逻辑处理阶段。这里nginx做的非常巧妙也非常复杂，首先是chain的重用，然后是buf的重用。 
+
+先来看chain的重用。关键的几个结构以及域：ctx的free，busy以及ctx->pool的chain域。 
+
+其中每次发送没有发完的chain就放到busy中，而已经发送完毕的就放到free中，而最后会调用  ngx_free_chain来将free的chain放入到pool->chain中,而在ngx_alloc_chain_link中，如果pool->chain中存在chain的话，就不用malloc了，而是直接返回pool->chain，相关的代码如下：
 
 
+.. code:: c
 
-chunked响应体
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    /* 链接cl到pool->chain中 */  
+    #define ngx_free_chain(pool, cl)                                             \  
+        cl->next = pool->chain;                                                  \  
+        pool->chain = cl  
+
+    /* 从pool中分配chain */
+    ngx_chain_t *  
+    ngx_alloc_chain_link(ngx_pool_t *pool)  
+    {  
+        ngx_chain_t  *cl;  
+      
+        cl = pool->chain;  
+        /* 如果cl存在，则直接返回cl */
+        if (cl) {  
+            pool->chain = cl->next;  
+            return cl;  
+        }  
+        /* 否则才会malloc chain */  
+        cl = ngx_palloc(pool, sizeof(ngx_chain_t));  
+        if (cl == NULL) {  
+            return NULL;  
+        }  
+      
+        return cl;  
+    }  
+
+然后是buf的重用，严格意义上来说buf的重用是从free中的chain中取得的，当free中的buf被重用，则这个buf对应的chain就会被链接到ctx->pool中，从而这个chain就会被重用。也就是说首先考虑的是buf的重用，只有当这个chain的buf确定不需要被重用(或者说已经被重用)的时候，chain才会被链接到ctx->pool中被重用。 
+
+还有一个就是ctx的allocated域，这个域表示了当前的上下文中已经分配了多少个buf，output_buffer命令用来设置output的buf大小以及buf的个数。而allocated如果比output_buffer大的话，则需要先发送完已经存在的buf，然后才能再次重新分配buf。 
+
+来看代码，上面所说的重用以及buf的控制，代码里面都可以看的比较清晰。下面这段主要是拷贝buf前所做的一些工作，比如判断是否拷贝，以及给buf分贝内存等：
 
 
+.. code:: c
 
-pipeline请求
--------------------
+    /* out为最终需要传输的chain，也就是交给剩下的filter处理的chain */
+    out = NULL;  
+    /* last_out为out的最后一个chain */  
+    last_out = &out;  
+    last = NGX_NONE;  
+  
+    for ( ;; ) {  
+  
+        /* 开始遍历chain */  
+        while (ctx->in) {  
+  
+            /* 取得当前chain的buf大小 */  
+            bsize = ngx_buf_size(ctx->in->buf);  
+  
+            /* 跳过bsize为0的buf */  
+            if (bsize == 0 && !ngx_buf_special(ctx->in->buf)) {  
+                ngx_debug_point();  
+  
+                ctx->in = ctx->in->next;  
+  
+                continue;  
+            }  
+  
+            /* 判断是否需要复制buf */  
+            if (ngx_output_chain_as_is(ctx, ctx->in->buf)) {  
+  
+                /* move the chain link to the output chain */  
+                /* 如果不需要复制，则直接链接chain到out，然后继续循环 */  
+                cl = ctx->in;  
+                ctx->in = cl->next;  
+  
+                *last_out = cl;  
+                last_out = &cl->next;  
+                cl->next = NULL;  
+  
+                continue;  
+            }  
+  
+            /* 到达这里，说明我们需要拷贝buf，这里buf最终都会被拷贝进ctx->buf中，
+               因此这里先判断ctx->buf是否为空 */  
+            if (ctx->buf == NULL) {  
+  
+                /* 如果为空，则取得buf，这里要注意，一般来说如果没有开启directio的话，
+                   这个函数都会返回NGX_DECLINED */  
+                rc = ngx_output_chain_align_file_buf(ctx, bsize);  
+  
+                if (rc == NGX_ERROR) {  
+                    return NGX_ERROR;  
+                }  
+  
+                /* 大部分情况下，都会落入这个分支 */  
+                if (rc != NGX_OK) {  
+  
+                    /* 准备分配buf，首先在free中寻找可以重用的buf */
+                    if (ctx->free) {  
+  
+                        /* get the free buf */  
+                        /* 得到free buf */  
+                        cl = ctx->free;  
+                        ctx->buf = cl->buf;  
+                        ctx->free = cl->next;  
+                        /* 将要重用的chain链接到ctx->poll中，以便于chain的重用 */  
+                        ngx_free_chain(ctx->pool, cl);  
+  
+                    } else if (out || ctx->allocated == ctx->bufs.num) {  
+                        /* 如果已经等于buf的个数限制，则跳出循环，发送已经存在的buf。
+                           这里可以看到如果out存在的话，nginx会跳出循环，然后发送out，
+                           等发送完会再次处理，这里很好的体现了nginx的流式处理 */  
+                        break;  
+  
+                    } else if (ngx_output_chain_get_buf(ctx, bsize) != NGX_OK) {  
+                        /* 上面这个函数也比较关键，它用来取得buf。接下来会详细看这个函数 */  
+                        return NGX_ERROR;  
+                    }  
+                }  
+            }  
+            /* 从原来的buf中拷贝内容或者从文件中读取内容 */
+            rc = ngx_output_chain_copy_buf(ctx);
+
+            if (rc == NGX_ERROR) {
+                return rc;
+            }
+
+            if (rc == NGX_AGAIN) {
+                if (out) {
+                    break;
+                }
+
+                return rc;
+            }
+
+            /* delete the completed buf from the ctx->in chain */
+
+            if (ngx_buf_size(ctx->in->buf) == 0) {
+                ctx->in = ctx->in->next;
+            }
+            /* 分配新的chain节点 */
+            cl = ngx_alloc_chain_link(ctx->pool);
+            if (cl == NULL) {
+                return NGX_ERROR;
+            }
+
+            cl->buf = ctx->buf;
+            cl->next = NULL;
+            *last_out = cl;
+            last_out = &cl->next;
+            ctx->buf = NULL; 
+        } 
+        ...
+    }
+
+上面的代码分析的时候有个很关键的函数，那就是ngx_output_chain_get_buf，这个函数当没有可重用的buf时用来分配buf。 
+
+如果当前的buf位于最后一个chain，则需要特殊处理，一是buf的recycled域，另外是将要分配的buf的大小。 
+
+先来说recycled域，这个域表示当前的buf需要被回收。而一般情况下Nginx(比如在非last buf)会缓存一部分buf(默认是1460字节)，然后再发送，而设置了recycled的话，就不会让它缓存buf，也就是尽量发送出去，然后以供回收使用。 因此如果是最后一个buf，则不需要设置recycled域的，否则的话，需要设置recycled域。
+
+然后就是buf的大小。这里会有两个大小，一个是需要复制的buf的大小，一个是配置文件中设置的大小。如果不是最后一个buf，则只需要分配配置中设置的buf的大小就行了。如果是最后一个buf，则就处理不太一样，下面的代码会看到：
 
 
+.. code:: c
 
-keepalive请求
---------------------
+    static ngx_int_t  
+    ngx_output_chain_get_buf(ngx_output_chain_ctx_t *ctx, off_t bsize)  
+    {  
+        size_t       size;  
+        ngx_buf_t   *b, *in;  
+        ngx_uint_t   recycled;  
+      
+        in = ctx->in->buf;  
+        /* 可以看到这里分配的buf，每个buf的大小是配置文件中设置的size */  
+        size = ctx->bufs.size;  
+        /* 默认有设置recycled域 */  
+        recycled = 1;  
+        /* 如果当前的buf是属于最后一个chain的时候，需要特殊处理 */  
+        if (in->last_in_chain) {  
+            /* 如果buf大小小于配置指定的大小，则直接按实际大小分配，不设置回收标记 */
+            if (bsize < (off_t) size) {  
+      
+                /* 
+                 * allocate a small temp buf for a small last buf 
+                 * or its small last part 
+                 */  
+                size = (size_t) bsize;  
+                recycled = 0;  
+      
+            } else if (!ctx->directio  
+                       && ctx->bufs.num == 1  
+                       && (bsize < (off_t) (size + size / 4)))  
+            {  
+                /* 
+                 * allocate a temp buf that equals to a last buf, 
+                 * if there is no directio, the last buf size is lesser 
+                 * than 1.25 of bufs.size and the temp buf is single 
+                 */  
+      
+                size = (size_t) bsize;  
+                recycled = 0;  
+            }  
+        }  
+        /* 开始分配buf内存 */  
+        b = ngx_calloc_buf(ctx->pool);  
+        if (b == NULL) {  
+            return NGX_ERROR;  
+        }  
+      
+        if (ctx->directio) {  
+            /* directio需要对齐 */  
+      
+            b->start = ngx_pmemalign(ctx->pool, size, (size_t) ctx->alignment);  
+            if (b->start == NULL) {  
+                return NGX_ERROR;  
+            }  
+      
+        } else {  
+            /* 大部分情况会走到这里 */  
+            b->start = ngx_palloc(ctx->pool, size);  
+            if (b->start == NULL) {  
+                return NGX_ERROR;  
+            }  
+        }  
+      
+        b->pos = b->start;  
+        b->last = b->start;  
+        b->end = b->last + size;  
+        /* 设置temporary */  
+        b->temporary = 1;  
+        b->tag = ctx->tag;  
+        b->recycled = recycled;  
+      
+        ctx->buf = b;  
+        /* 更新allocated,可以看到每分配一个就加1 */  
+        ctx->allocated++;  
+      
+        return NGX_OK;  
+    }  
 
+分配新的buf和chain，并调用ngx_output_chain_copy_buf拷贝完数据之后，Nginx就将新的chain链表交给下一个body filter继续处理：
+
+
+.. code:: c
+
+    if (out == NULL && last != NGX_NONE) {
+
+        if (ctx->in) {
+            return NGX_AGAIN;
+        }
+
+        return last;
+    }
+
+    last = ctx->output_filter(ctx->filter_ctx, out);
+
+    if (last == NGX_ERROR || last == NGX_DONE) {
+        return last;
+    }
+
+    ngx_chain_update_chains(ctx->pool, &ctx->free, &ctx->busy, &out,
+                            ctx->tag);
+    last_out = &out;
+
+在其他body filter处理完之后，ngx_output_chain函数还需要更新chain链表，以便回收利用，ngx_chain_update_chains函数主要是将处理完毕的chain节点放入到free链表，没有处理完毕的放到busy链表中，另外这个函数用到了tag，它只回收copy filter产生的chain节点。
+
+
+ngx_http_write_filter_module分析
++++++++++++++++++++++++++++++++++++
+
+ngx_http_write_filter_module是最后一个body filter，可以看到它的注册函数的特殊性：
+
+.. code:: c
+
+    static ngx_int_t
+    ngx_http_write_filter_init(ngx_conf_t *cf)
+    {
+        ngx_http_top_body_filter = ngx_http_write_filter;
+
+        return NGX_OK;
+    }
+
+ngx_http_write_filter_module是第一个注册body filter的模块，于是它也是最后一个执行的body filter模块。
+
+直接来看ngx_http_write_filter，下面的代码中去掉了一些调试代码：
+
+.. code:: c
+
+    ngx_int_t
+    ngx_http_write_filter(ngx_http_request_t *r, ngx_chain_t *in)
+    {
+        off_t                      size, sent, nsent, limit;
+        ngx_uint_t                 last, flush;
+        ngx_msec_t                 delay;
+        ngx_chain_t               *cl, *ln, **ll, *chain;
+        ngx_connection_t          *c;
+        ngx_http_core_loc_conf_t  *clcf;
+
+        c = r->connection;
+
+        if (c->error) {
+            return NGX_ERROR;
+        }
+
+        size = 0;
+        flush = 0;
+        last = 0;
+        ll = &r->out;
+
+        /* find the size, the flush point and the last link of the saved chain */
+     
+        for (cl = r->out; cl; cl = cl->next) {
+            ll = &cl->next;
+
+    #if 1
+            if (ngx_buf_size(cl->buf) == 0 && !ngx_buf_special(cl->buf)) {
+                return NGX_ERROR;
+            }
+    #endif
+
+            size += ngx_buf_size(cl->buf);
+
+            if (cl->buf->flush || cl->buf->recycled) {
+                flush = 1;
+            }
+
+            if (cl->buf->last_buf) {
+                last = 1;
+            }
+        }
+
+        /* add the new chain to the existent one */
+
+        for (ln = in; ln; ln = ln->next) {
+            cl = ngx_alloc_chain_link(r->pool);
+            if (cl == NULL) {
+                return NGX_ERROR;
+            }
+
+            cl->buf = ln->buf;
+            *ll = cl;
+            ll = &cl->next;
+
+    #if 1
+            if (ngx_buf_size(cl->buf) == 0 && !ngx_buf_special(cl->buf)) {
+                return NGX_ERROR;
+            }
+    #endif
+
+            size += ngx_buf_size(cl->buf);
+
+            if (cl->buf->flush || cl->buf->recycled) {
+                flush = 1;
+            }
+
+            if (cl->buf->last_buf) {
+                last = 1;
+            }
+        }
+
+        *ll = NULL;
+
+        clcf = ngx_http_get_module_loc_conf(r, ngx_http_core_module);
+
+        /*
+         * avoid the output if there are no last buf, no flush point,
+         * there are the incoming bufs and the size of all bufs
+         * is smaller than "postpone_output" directive
+         */
+
+        if (!last && !flush && in && size < (off_t) clcf->postpone_output) {
+            return NGX_OK;
+        }
+        /* 如果请求由于被限速而必须延迟发送时，设置一个标识后退出 */
+        if (c->write->delayed) {
+            c->buffered |= NGX_HTTP_WRITE_BUFFERED;
+            return NGX_AGAIN;
+        }
+        /* 如果buffer总大小为0，而且当前连接之前没有由于底层发送接口的原因延迟，
+           则检查是否有特殊标记 */
+        if (size == 0 && !(c->buffered & NGX_LOWLEVEL_BUFFERED)) {
+            /* last_buf标记，表示请求体已经发送结束 */
+            if (last) {
+                r->out = NULL;
+                c->buffered &= ~NGX_HTTP_WRITE_BUFFERED;
+
+                return NGX_OK;
+            }
+            /* flush生效，而且又没有实际数据，则清空当前的未发送队列 */
+            if (flush) {
+                do {
+                    r->out = r->out->next;
+                } while (r->out);
+
+                c->buffered &= ~NGX_HTTP_WRITE_BUFFERED;
+
+                return NGX_OK;
+            }
+
+            return NGX_ERROR;
+        }
+        /*　请求有速率限制，则计算当前可以发送的大小 */
+        if (r->limit_rate) {
+            limit = r->limit_rate * (ngx_time() - r->start_sec + 1)
+                    - (c->sent - clcf->limit_rate_after);
+
+            if (limit <= 0) {
+                c->write->delayed = 1;
+                ngx_add_timer(c->write,
+                              (ngx_msec_t) (- limit * 1000 / r->limit_rate + 1));
+
+                c->buffered |= NGX_HTTP_WRITE_BUFFERED;
+
+                return NGX_AGAIN;
+            }
+
+            if (clcf->sendfile_max_chunk
+                && (off_t) clcf->sendfile_max_chunk < limit)
+            {
+                limit = clcf->sendfile_max_chunk;
+            }
+
+        } else {
+            limit = clcf->sendfile_max_chunk;
+        }
+
+        sent = c->sent;
+        /* 发送数据 */
+        chain = c->send_chain(c, r->out, limit);
+
+        if (chain == NGX_CHAIN_ERROR) {
+            c->error = 1;
+            return NGX_ERROR;
+        }
+        /* 更新限速相关的信息 */
+        if (r->limit_rate) {
+
+            nsent = c->sent;
+
+            if (clcf->limit_rate_after) {
+
+                sent -= clcf->limit_rate_after;
+                if (sent < 0) {
+                    sent = 0;
+                }
+
+                nsent -= clcf->limit_rate_after;
+                if (nsent < 0) {
+                    nsent = 0;
+                }
+            }
+
+            delay = (ngx_msec_t) ((nsent - sent) * 1000 / r->limit_rate);
+
+            if (delay > 0) {
+                limit = 0;
+                c->write->delayed = 1;
+                ngx_add_timer(c->write, delay);
+            }
+        }
+
+        if (limit
+            && c->write->ready
+            && c->sent - sent >= limit - (off_t) (2 * ngx_pagesize))
+        {
+            c->write->delayed = 1;
+            ngx_add_timer(c->write, 1);
+        }
+        /* 更新输出链，释放已经发送的节点 */
+        for (cl = r->out; cl && cl != chain; /* void */) {
+            ln = cl;
+            cl = cl->next;
+            ngx_free_chain(r->pool, ln);
+        }
+
+        r->out = chain;
+        /* 如果数据未发送完毕，则设置一个标记 */
+        if (chain) {
+            c->buffered |= NGX_HTTP_WRITE_BUFFERED;
+            return NGX_AGAIN;
+        }
+
+        c->buffered &= ~NGX_HTTP_WRITE_BUFFERED;
+        /* 如果由于底层发送接口导致数据未发送完全，且当前请求没有其他数据需要发送，
+           此时要返回NGX_AGAIN，表示还有数据未发送 */
+        if ((c->buffered & NGX_LOWLEVEL_BUFFERED) && r->postponed == NULL) {
+            return NGX_AGAIN;
+        }
+
+        return NGX_OK;
+    }
+
+Nginx将待发送的chain链表保存在r->out，上面的函数先检查之前未发送完的链表中是否有flush，recycled以及last_buf标识，并计算所有buffer的大小，接着对新输入的chain链表做同样的事情，并将新链表加到r->out的队尾。
+
+如果没有输出链表中没有被标识为最后一块buffer的节点，而且没有需要flush或者急着回收的buffer，并且当前队列中buffer总大小不够postpone_output指令设置的大小（默认为1460字节）时，函数会直接返回。
+
+ngx_http_write_filter会调用c->send_chain往客户端发送数据，c->send_chain的取值在不同操作系统，编译选项以及协议下（https下用的是ngx_ssl_send_chain）会取不同的函数，典型的linux操作系统下，它的取值为ngx_linux_sendfile_chain，也就是最终会调用这个函数来发送数据。它的函数原型为：
+
+.. code:: c
+
+    ngx_chain_t *
+    ngx_linux_sendfile_chain(ngx_connection_t *c, ngx_chain_t *in, off_t limit)
+
+第一个参数是当前的连接，第二个参数是所需要发送的chain，第三个参数是所能发送的最大值。 
+
+首先看一下这个函数定义的一些重要局部变量：
+
+send表示将要发送的buf已经已经发送的大小；  
+
+sent表示已经发送的buf的大小； 
+
+prev_send表示上一次发送的大小，也就是已经发送的buf的大小；  
+
+fprev 和prev-send类似，只不过是file类型的； 
+
+complete表示是否buf被完全发送了，也就是sent是否等于send - prev_send；
+
+header表示需要是用writev来发送的buf，也就是only in memory的buf；  
+
+struct iovec *iov, headers[NGX_HEADERS] 这个主要是用于sendfile和writev的参数，这里注意上面header数组保存的就是iovec。
+
+
+下面看函数开头的一些初始化代码：
+
+.. code:: c
+
+    wev = c->write;  
+  
+    if (!wev->ready) {  
+        return in;  
+    }  
+
+    /* the maximum limit size is 2G-1 - the page size */
+
+    if (limit == 0 || limit > (off_t) (NGX_SENDFILE_LIMIT - ngx_pagesize)) {  
+        limit = NGX_SENDFILE_LIMIT - ngx_pagesize;  
+    }  
+  
+  
+    send = 0;  
+
+    /* 设置header，也就是in memory的数组 */  
+    header.elts = headers;  
+    header.size = sizeof(struct iovec);  
+    header.nalloc = NGX_HEADERS;  
+    header.pool = c->pool;
+
+下面这段代码就是处理in memory的部分，然后将buf放入对应的iovec数组，处理核心思想就是合并内存连续并相邻的buf(不管是in memory还是in file)：
+
+.. code:: c
+
+    for (cl = in; cl && send < limit;  cl = cl->next) {  
+
+        if (ngx_buf_special(cl->buf)) {  
+            continue;  
+        }  
+
+        /* 如果既不在内存中，又不在文件中，则返回错误 */
+        if (!ngx_buf_in_memory(cl->buf) && !cl->buf->in_file) {
+            return NGX_CHAIN_ERROR;
+        }  
+
+        /* 如果不只是在buf中，这是因为有时in file的buf可能需要内存中也有拷贝，
+           如果一个buf同时in memoey和in file的话，Nginx会把它当做in file来处理 */  
+        if (!ngx_buf_in_memory_only(cl->buf)) {  
+            break;  
+        } 
+
+        /* 得到buf的大小 */
+        size = cl->buf->last - cl->buf->pos;  
+
+        /* 大于limit的话修改为size */ 
+        if (send + size > limit) {  
+            size = limit - send;  
+        }
+
+        /* 如果prev等于pos，则说明当前的buf的数据和前一个buf的数据是连续的 */ 
+        if (prev == cl->buf->pos) {  
+            iov->iov_len += (size_t) size;  
+
+        } else {  
+            if (header.nelts >= IOV_MAX) {
+                break;
+            }
+            /* 否则说明是不同的buf，因此增加一个iovc */  
+            iov = ngx_array_push(&header);  
+            if (iov == NULL) {  
+                return NGX_CHAIN_ERROR;  
+            }  
+
+            iov->iov_base = (void *) cl->buf->pos;  
+            iov->iov_len = (size_t) size;  
+        }  
+
+        /* 这里可以看到prev保存了当前buf的结尾 */  
+        prev = cl->buf->pos + (size_t) size;  
+        /* 更新发送的大小 */ 
+        send += size;  
+    }    
+
+然后是in file的处理，这里比较核心的一个判断就是fprev == cl->buf->file_pos，和上面的in memory类似，fprev保存的就是上一次处理的buf的尾部。这里如果这两个相等，那就说明当前的两个buf是连续的(文件连续)：
+
+.. code:: c
+
+    /* 如果header的大小不为0则说明前面有需要发送的buf，
+       并且数据大小已经超过限制则跳过in file处理 */
+    if (header.nelts == 0 && cl && cl->buf->in_file && send < limit) {  
+        /* 得到file  
+        file = cl->buf;  
+
+        /* 开始合并 */  
+        do {  
+            /* 得到大小 */  
+            size = cl->buf->file_last - cl->buf->file_pos;  
+
+            /* 如果太大则进行对齐处理 */  
+            if (send + size > limit) {  
+                size = limit - send;  
+
+                aligned = (cl->buf->file_pos + size + ngx_pagesize - 1)  
+                           & ~((off_t) ngx_pagesize - 1);  
+
+                if (aligned <= cl->buf->file_last) {  
+                    size = aligned - cl->buf->file_pos;  
+                }  
+            }  
+
+            /* 设置file_size */  
+            file_size += (size_t) size;  
+            /* 设置需要发送的大小 */  
+            send += size;  
+            /* 和上面的in memory处理一样就是保存这次的last */  
+            fprev = cl->buf->file_pos + size;  
+            cl = cl->next;  
+
+        } while (cl  
+                 && cl->buf->in_file  
+                 && send < limit  
+                 && file->file->fd == cl->buf->file->fd  
+                 && fprev == cl->buf->file_pos);  
+    } 
+
+然后就是发送部分，这里in file使用sendfile，in memory使用writev。处理逻辑比较简单，就是发送后判断发送成功的大小 
+
+.. code:: c
+
+    if (file) {  
+    #if 1  
+        if (file_size == 0) {  
+            ngx_debug_point();  
+            return NGX_CHAIN_ERROR;  
+        }  
+    #endif  
+    #if (NGX_HAVE_SENDFILE64)  
+            offset = file->file_pos;  
+    #else  
+            offset = (int32_t) file->file_pos;  
+    #endif  
+
+        /* 数据在文件中则调用sendfile发送数据 */
+        rc = sendfile(c->fd, file->file->fd, &offset, file_size);  
+
+        ...
+
+        /* 得到发送成功的字节数 */  
+        sent = rc > 0 ? rc : 0;  
+
+    } else {
+        /* 数据在内存中则调用writev发送数据 */  
+        rc = writev(c->fd, header.elts, header.nelts);  
+       
+        ...
+        /* 得到发送成功的字节数 */
+        sent = rc > 0 ? rc : 0;  
+    }
+
+接下来就是需要根据发送成功的字节数来更新chain：
+
+.. code:: c
+
+    /* 如果send - prev_send == sent则说明该发送的都发完了 */  
+    if (send - prev_send == sent) {  
+        complete = 1;  
+    }  
+    /* 更新congnect的sent域 */  
+    c->sent += sent;  
+
+    /* 开始重新遍历chain，这里是为了防止没有发送完全的情况，
+       此时我们就需要切割buf了 */  
+    for (cl = in; cl; cl = cl->next) {  
+
+        if (ngx_buf_special(cl->buf)) {  
+            continue;  
+        }  
+
+        if (sent == 0) {  
+            break;  
+        }  
+        /* 得到buf size */ 
+        size = ngx_buf_size(cl->buf);  
+
+        /* 如果大于当前的size，则说明这个buf的数据已经被完全发送完毕了，
+           因此更新它的域 */  
+        if (sent >= size){  
+            /* 更新sent域 */  
+            sent -= size;  
+            /* 如果在内存则更新pos */  
+            if (ngx_buf_in_memory(cl->buf)) {  
+                cl->buf->pos = cl->buf->last;  
+            }  
+            /* 如果在file中则更显file_pos */  
+            if (cl->buf->in_file) {  
+                cl->buf->file_pos = cl->buf->file_last;  
+            }  
+
+            continue;  
+        }  
+
+        /* 到这里说明当前的buf只有一部分被发送出去了，因此只需要修改指针。
+           以便于下次发送 */  
+        if (ngx_buf_in_memory(cl->buf)) {  
+            cl->buf->pos += (size_t) sent;  
+        }  
+        /* 同上 */
+        if (cl->buf->in_file) {  
+            cl->buf->file_pos += sent;  
+        }  
+
+        break;  
+    }  
+
+
+最后一部分是一些是否退出循环的判断。这里要注意，Nginx中如果发送未完全的话，将会直接返回，返回的就是没有发送完毕的chain，它的buf也已经被更新。然后Nginx返回去处理其他的事情，等待可写之后再次发送未发送完的数据：
+
+.. code:: c
+
+    if (eintr) {  
+        continue;  
+    }  
+    /* 如果未完成，则设置wev->ready为0后返回 */  
+    if (!complete) {  
+        wev->ready = 0;  
+        return cl;  
+    }  
+    /* 发送数据超过限制，或没有数据了 */
+    if (send >= limit || cl == NULL) {  
+        return cl;  
+    }  
+    /* 更新in，也就是开始处理下一个chain */
+    in = cl; 
 
 
 subrequest原理解析 (99%)
@@ -1634,4 +2961,365 @@ ngx_http_run_posted_requests函数的调用点后面会做说明。
 
      ...
     } 
+
+
+https请求处理解析
+-----------------------
+
+
+nginx支持ssl简介
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+nginx-1.2.0编译时默认是不支持ssl协议的，需要通过编译指令来开启对其支持：
+
+.. code:: c
+
+    ./configure --with-http_ssl_module
+
+在nginx源码中，ssl相关代码用宏定义变量NGX_HTTP_SSL来控制是否开启。这给我们查找和阅读ssl相关代码带来了方便，如下:
+
+.. code:: c
+    #if NGX_HTTP_SSL
+        /* http ssl code */
+    #endif
+
+ssl协议工作在tcp协议与http协议之间。nginx在支持ssl协议时，需要注意三点，其他时候只要正常处理http协议即可:
+
+1. tcp连接建立时，在tcp连接上建立ssl连接
+
+2. tcp数据接收后，将收到的数据解密并将解密后的数据交由正常http协议处理流程
+
+3. tcp数据发送前，对(http)数据进行加密，然后再发送
+
+以下章节将分别介绍这三点。
+
+
+ssl连接建立(ssl握手)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+对ssl连接建立的准备
++++++++++++++++++++++++
+
+
+更具ssl协议规定，在正式发起数据收发前，需要建立ssl连接，连接建立过程既ssl握手。nginx在创建和初始化http请求阶段的同时为tcp连接建立做准备，主要流程在ngx_http_init_request函数中实现:
+
+.. code:: c
+
+    static void
+    ngx_http_init_request(ngx_event_t *rev)
+    {
+    
+    ...
+    
+    #if (NGX_HTTP_SSL)
+    
+        {
+        ngx_http_ssl_srv_conf_t  *sscf;
+    
+        sscf = ngx_http_get_module_srv_conf(r, ngx_http_ssl_module);
+        if (sscf->enable || addr_conf->ssl) {
+    
+            /* c->ssl不为空时，表示请求复用长连接(已经建立过ssl连接) */
+            if (c->ssl == NULL) {
+    
+                c->log->action = "SSL handshaking";
+    
+                /*
+                 * nginx.conf中开启ssl协议(listen 443 ssl;)，
+                 * 却没用设置服务器证书(ssl_certificate <certificate_path>;)
+                 */
+                if (addr_conf->ssl && sscf->ssl.ctx == NULL) {
+                    ngx_log_error(NGX_LOG_ERR, c->log, 0,
+                                  "no \"ssl_certificate\" is defined "
+                                  "in server listening on SSL port");
+                    ngx_http_close_connection(c);
+                    return;
+                }
+    
+                /* 
+                 * 创建ngx_ssl_connection_t并初始化
+                 * openssl库中关于ssl连接的初始化
+                 */
+                if (ngx_ssl_create_connection(&sscf->ssl, c, NGX_SSL_BUFFER)
+                    != NGX_OK)
+                {
+                    ngx_http_close_connection(c);
+                    return;
+                }
+    
+                rev->handler = ngx_http_ssl_handshake;
+            }
+    
+            /* ssl加密的数据必须读到内存中 */
+            r->main_filter_need_in_memory = 1;
+        }
+        }
+    
+    #endif
+    
+    ...
+    
+    }
+
+ngx_http_init_request大部分流程已经在前面章节分析过了，这个函数主要负责初始化http请求，此时并没有实际解析http请求。若发来的请求是经由ssl协议加密的，直接解析http请求就会出错。ngx_http_init_request中ssl协议相关处理流程:
+
+1，首先判断c->ssl是否为空。若不为空：说明这里是http长连接的情况，ssl连接已经在第一个请求进入时建立了。这里只要复用这个ssl连接即可，跳过ssl握手阶段。
+
+2.(1)，若c->ssl为空：需要进行ssl握手来建立连接。此时调用ngx_ssl_create_connection为ssl连接建立做准备。
+
+ngx_ssl_create_connection 简化代码如下:
+
+.. code:: c
+
+    ngx_int_t
+    ngx_ssl_create_connection(ngx_ssl_t *ssl, ngx_connection_t *c, ngx_uint_t flags)
+    {
+        ngx_ssl_connection_t  *sc;
+    
+        /* ngx_ssl_connection_t是nginx对ssl连接的描述结构，记录了ssl连接的信息和状态 */
+        sc = ngx_pcalloc(c->pool, sizeof(ngx_ssl_connection_t));
+    
+        sc->buffer = ((flags & NGX_SSL_BUFFER) != 0);
+    
+        /* 创建openssl库中对ssl连接的描述结构 */
+        sc->connection = SSL_new(ssl->ctx);
+    
+        /* 关联(openssl库)ssl连接到tcp连接对应的socket */
+        SSL_set_fd(sc->connection, c->fd);
+    
+        if (flags & NGX_SSL_CLIENT) {
+            /* upstream中发起对后端的ssl连接，指明nginx ssl连接是客户端 */
+            SSL_set_connect_state(sc->connection);
+    
+        } else {
+            /* 指明nginx ssl连接是服务端 */
+            SSL_set_accept_state(sc->connection);
+        }
+
+        /* 关联(openssl库)ssl连接到用户数据(当前连接c) */
+        SSL_set_ex_data(sc->connection, ngx_ssl_connection_index, c);
+    
+        c->ssl = sc;
+    
+        return NGX_OK;
+    }
+
+2.(2)，设置连接读事件处理函数为ngx_http_ssl_handshake，这将改变后续处理http请求的正常流程为：先进行ssl握手，再正常处理http请求。
+
+3，标明当前待发送的数据须在内存中，以此可以让ssl对数据进行加密。由于开启了ssl协议，对发送出去的数据要进行加密，这就要求待发送的数据必须在内存中。 标识r->main_filter_need_in_memory为1，可以让后续数据发送前，将数据读取到内存中 (防止在文件中的数据通过sendfile直接发送出去，而没有加密）。
+
+
+实际ssl握手阶段
++++++++++++++++++++++++
+
+
+由于在ngx_http_init_request中将连接读事件处理函数设置成ngx_http_ssl_handshake，当连接中有可读数据时，将会进入ngx_http_ssl_handshake来处理(若未开启ssl，将进入ngx_http_process_request_line直接解析http请求）
+
+在ngx_http_ssl_handshake中，来进行ssl握手:
+
+1，首先判断连接是否超时，如果超时则关闭连接
+
+.. code:: c
+
+    static void
+    ngx_http_process_request(ngx_http_request_t *r)
+    {
+        if (rev->timedout) {
+            ngx_log_error(NGX_LOG_INFO, c->log, NGX_ETIMEDOUT, "client timed out");
+            c->timedout = 1;
+            ngx_http_close_request(r, NGX_HTTP_REQUEST_TIME_OUT);
+            return;
+        }
+
+2，首字节预读：从tcp连接中查看一个字节(通过MSG_PEEK查看tcp连接中数据，但不会实际读取该数据)，若tcp连接中没有准备好的数据，则重新添加读事件退出等待新数据到来。
+
+.. code:: c
+
+    n = recv(c->fd, (char *) buf, 1, MSG_PEEK);
+
+    if (n == -1 && ngx_socket_errno == NGX_EAGAIN) {
+
+        if (!rev->timer_set) {
+            ngx_add_timer(rev, c->listening->post_accept_timeout);
+        }
+
+        if (ngx_handle_read_event(rev, 0) != NGX_OK) {
+            ngx_http_close_request(r, NGX_HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        return;
+    }
+
+3，首字节探测：若成功查看1个字节数据，通过该首字节来探测接受到的数据是ssl握手包还是http数据。根据ssl协议规定，ssl握手包的首字节中包含有ssl协议的版本信息。nginx根据此来判断是进行ssl握手还是返回正常处理http请求(实际返回应答400 BAD REQUEST)。
+
+.. code:: c
+
+    if (n == 1) {
+        if (buf[0] & 0x80 /* SSLv2 */ || buf[0] == 0x16 /* SSLv3/TLSv1 */) {
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, rev->log, 0,
+                           "https ssl handshake: 0x%02Xd", buf[0]);
+
+            /* 
+             * 调用ngx_ssl_handshake函数进行ssl握手，连接双方会在ssl握手时交换相
+             * 关数据(ssl版本，ssl加密算法，server端的公钥等) 并正式建立起ssl连接。
+             * ngx_ssl_handshake函数内部对openssl库进行了封装。
+             * 调用SSL_do_handshake()来进行握手，并根据其返回值判断ssl握手是否完成
+             * 或者出错。
+             */
+            rc = ngx_ssl_handshake(c);
+
+            /*
+             * ssl握手可能需要多次数据交互才能完成。
+             * 如果ssl握手没有完成，ngx_ssl_handshake会根据具体情况(如需要读取更
+             * 多的握手数据包，或者需要发送握手数据包）来重新添加读写事件
+             */
+            if (rc == NGX_AGAIN) {
+
+                if (!rev->timer_set) {
+                    ngx_add_timer(rev, c->listening->post_accept_timeout);
+                }
+
+                c->ssl->handler = ngx_http_ssl_handshake_handler;
+                return;
+            }
+
+            /*
+             * 若ssl握手完成或者出错，ngx_ssl_handshake会返回NGX_OK或者NGX_ERROR, 然后ngx_http_ssl_handshake调用
+             * ngx_http_ssl_handshake_handler以继续处理
+             */
+
+            ngx_http_ssl_handshake_handler(c);
+
+            return;
+
+        } else {
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, rev->log, 0,
+                           "plain http");
+
+            r->plain_http = 1;
+        }
+    }
+
+需要特别注意，如果ssl握手完成，ngx_ssl_handshake会替换连接的读写接口。这样，后续需要读写数据时，替换的接口会对数据进行加密解密。详细代码见下:
+
+.. code:: c
+
+    ngx_int_t
+    ngx_ssl_handshake(ngx_connection_t *c)
+    {
+        n = SSL_do_handshake(c->ssl->connection);
+        /* 返回1表示ssl握手成功 */
+        if (n == 1) {   
+    ...
+            c->ssl->handshaked = 1;
+
+            c->recv = ngx_ssl_recv;
+            c->send = ngx_ssl_write;
+            c->recv_chain = ngx_ssl_recv_chain;
+            c->send_chain = ngx_ssl_send_chain;
+
+            return NGX_OK;
+        }
+    ...
+    }
+
+
+4，探测为http协议：正常的http协议包处理直接调用ngx_http_process_request_line处理http请求，并将读事件处理函数设置成ngx_http_process_request_line。(实际处理结果是向客户端返回400 BAD REQUET，在ngx_http_process_request中又对r->plain_http标志的单独处理。)
+
+.. code:: c
+
+        c->log->action = "reading client request line";
+
+        rev->handler = ngx_http_process_request_line;
+        ngx_http_process_request_line(rev);
+
+    } /* end of ngx_http_process_request() */
+
+5，当ssl握手成功或者出错时，调用ngx_http_ssl_handshake_handler函数。
+
+5.(1)，若ssl握手完成 (c->ssl->handshaked由ngx_ssl_handshake()确定握手完成后设为1)，设置读事件处理函数为ngx_http_process_request_line，并调用此函数正常处理http请求。
+
+5.(2)，若ssl握手没完成（则说明ssl握手出错），则返回400 BAD REQUST给客户端。
+
+至此，ssl连接已经建立，此后在ngx_http_process_request中会读取数据并解密然后正常处理http请求。
+
+.. code:: c
+
+    static void
+    ngx_http_ssl_handshake_handler(ngx_connection_t *c)
+    {
+        ngx_http_request_t  *r;
+    
+        if (c->ssl->handshaked) {
+    
+            /*
+             * The majority of browsers do not send the "close notify" alert.
+             * Among them are MSIE, old Mozilla, Netscape 4, Konqueror,
+             * and Links.  And what is more, MSIE ignores the server's alert.
+             *
+             * Opera and recent Mozilla send the alert.
+             */
+    
+            c->ssl->no_wait_shutdown = 1;
+    
+            c->log->action = "reading client request line";
+    
+            c->read->handler = ngx_http_process_request_line;
+            /* STUB: epoll edge */ c->write->handler = ngx_http_empty_handler;
+    
+            ngx_http_process_request_line(c->read);
+    
+            return;
+        }
+    
+        r = c->data;
+    
+        ngx_http_close_request(r, NGX_HTTP_BAD_REQUEST);
+    
+        return;
+    }
+
+
+ssl协议接受数据
++++++++++++++++++++++++
+
+
+ngx_http_process_request中处理http请求，需要读取和解析http协议。而实际数据读取是通过c->recv()函数来读取的，此函数已经在ngx_ssl_handshake中被替换成ngx_ssl_recv了。
+
+ngx_ssl_recv函数中调用openssl库函数SSL_read()来读取并解密数据，简化后如下：
+
+.. code:: c
+
+    ssize_t ngx_ssl_recv(ngx_connection_t *c, u_char *buf, size_t size)
+    {
+    ...
+        n = SSL_read(c->ssl->connection, buf, size);
+    ...
+        return n;
+    }
+
+
+ssl协议发送数据
++++++++++++++++++++++++
+
+
+当nginx发送数据时，如使用ngx_output_chain函数发送缓存的http数据缓存链时，通过调用c->send_chain()来发送数据。这个函数已经在ngx_ssl_handshake中被设置成ngx_ssl_send_chain了。ngx_ssl_send_chain会进一步调用ngx_ssl_write。而ngx_ssl_write调用openssl库SSL_write函数来加密并发送数据。
+
+.. code:: c
+
+    /* ngx_output_chain
+     *  -> ..
+     *   -> ngx_chain_writer
+     *     -> c->send_chain (ngx_ssl_send_chain) 
+     *      -> ngx_ssl_write
+     */
+    ssize_t ngx_ssl_write(ngx_connection_t *c, u_char *data, size_t size)
+    {
+    ...
+        n = SSL_write(c->ssl->connection, data, size);
+    ...
+        return n;
+    }
 
