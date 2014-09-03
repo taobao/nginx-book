@@ -36,7 +36,7 @@
                 #define NGX_HTTP_VAR_INDEXED      4
                 #define NGX_HTTP_VAR_NOHASH       8
 
-1. NGX_HTTP_VAR_CHANGEABLE表示这个变量是可变的.Nginx有很多内置变量是不可变的，比如arg_xxx这类变量，如果你使用set指令来修改，那么Nginx就会报错.
+1. NGX_HTTP_VAR_CHANGEABLE表示这个变量是可变的,比如arg_xxx这类变量，如果你使用set指令来修改，那么Nginx就会报错.
 2. NGX_HTTP_VAR_NOCACHEABLE表示这个变量每次都要去取值，而不是直接返回上次cache的值(配合对应的接口).
 3. NGX_HTTP_VAR_INDEXED表示这个变量是用索引读取的.
 4. NGX_HTTP_VAR_NOHASH表示这个变量不需要被hash.
@@ -59,7 +59,7 @@
 
                 ngx_http_variable_t *ngx_http_add_variable(ngx_conf_t *cf, ngx_str_t *name, ngx_uint_t flags);
 
-这个函数所做的工作就是将变量 "name"添加进全局的hash key表中,然后初始化一些域，不过这里要注意，对应的变量的get/set回调，需要当这个函数返回之后，显式的设置,比如在split_clients模块中的例子:
+这个函数所做的工作就是将变量 "name"添加进全局的hash key表中,然后初始化一些域，不过这里要注意，对应的变量的get/set回调，需要当这个函数返回之后，显示的设置,比如在split_clients模块中的例子:
 
 .. code:: c
 
@@ -128,7 +128,7 @@ Nginx的内部变量指的就是Nginx的官方模块中所导出的变量，在N
 他们的区别是这样子的，ngx_http_get_indexed_variable和ngx_http_get_flushed_variable都是用来取得有索引的变量，不过他们的区别是后一个会处理
 NGX_HTTP_VAR_NOCACHEABLE这个标记，也就是说如果你想要cache你的变量值，那么你的变量属性就不能设置NGX_HTTP_VAR_NOCACHEABLE,并且通过ngx_http_get_flushed_variable来获取变量值.而ngx_http_get_variable和上面的区别就是它能够得到没有索引的变量值.
 
-通过上面我们知道可以通过索引来得到变量值，可是这个索引该如何取得呢，Nginx也提供了对应的接口：
+通过上面我们知道可以通过索引来得到变量值，可是这个索引改如何取得呢，Nginx也提供了对应的接口：
 
 .. code:: c
 
