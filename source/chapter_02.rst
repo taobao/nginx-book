@@ -680,7 +680,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
     ngx_int_t ngx_hash_wildcard_init(ngx_hash_init_t *hinit, ngx_hash_key_t *names,
         ngx_uint_t nelts);
 
-该函数迎来构建一个可以包含通配符key的hash表。
+该函数用来构建一个可以包含通配符key的hash表。
 
 :hinit: 构造一个通配符hash表的一些参数的一个集合。关于该参数对应的类型的说明，请参见ngx_hash_t类型中ngx_hash_init函数的说明。
 
