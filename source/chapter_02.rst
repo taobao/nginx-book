@@ -1158,7 +1158,7 @@ ngx_queue_init()的宏定义如下：
 
     #define ngx_queue_init(q)     \
         (q)->prev = q;            \
-        (q)->next = q;
+        (q)->next = q
 
 可见初始的时候哨兵节点的 prev 和 next 都指向自己，因此其实是一个空链表。ngx_queue_empty()可以用来判断一个链表是否为空，其实现也很简单，就是：
 
