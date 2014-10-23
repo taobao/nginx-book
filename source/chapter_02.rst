@@ -342,7 +342,7 @@ ngx_str_null用于设置字符串str为空串，长度为0，data为NULL。
 .. code:: c
 
     ngx_str_t str = ngx_string("hello world");
-    char buffer[1024];
+    u_char buffer[1024];
     ngx_snprintf(buffer, 1024, "%V", &str);    // 注意，str取地址
 
 .. code:: c
