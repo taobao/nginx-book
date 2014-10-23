@@ -989,7 +989,7 @@ ngx_buf_t(99%)
     ngx_buf_t *ngx_create_temp_buf(ngx_pool_t *pool, size_t size);
 
 
-该函数创建一个ngx_but_t类型的对象，并返回指向这个对象的指针，创建失败返回NULL。
+该函数创建一个ngx_buf_t类型的对象，并返回指向这个对象的指针，创建失败返回NULL。
 
 对于创建的这个对象，它的start和end指向新分配内存开始和结束的地方。pos和last都指向这块新分配内存的开始处，这样，后续的操作可以在这块新分配的内存上存入数据。
 
