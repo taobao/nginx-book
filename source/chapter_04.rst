@@ -43,7 +43,7 @@
 			NULL
 		};
 
-从write_filter到not_modified_filter，模块的执行顺序是反向的。也就是说最早执行的是not_modified_filter，然后各个模块依次执行。所有第三方的模块只能加入到copy_filter和headers_filter模块之间执行。
+从write_filter到not_modified_filter，模块的执行顺序是反向的。也就是说最早执行的是not_modified_filter，然后各个模块依次执行。一般情况下，第三方过滤模块的config文件会将模块名追加到变量HTTP_AUX_FILTER_MODULES中，此时该模块只能加入到copy_filter和headers_filter模块之间执行。
 
 Nginx执行的时候是怎么按照次序依次来执行各个过滤模块呢？它采用了一种很隐晦的方法，即通过局部的全局变量。比如，在每个filter模块，很可能看到如下代码：
 
