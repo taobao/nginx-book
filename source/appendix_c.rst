@@ -25,11 +25,11 @@ C.1 编译与安装
         
         Windows XP, Windows Server 2003
         
-磁盘空间：必须保证至少10M以上的磁盘工具，并且随着编译设置及第三方模块的安装而有所不同；
+磁盘空间：必须保证至少10M以上的磁盘空间，并且随着编译设置及第三方模块的安装而有所不同；
     
 编译器及相关工具： 必须确保操作系统安装有GCC编译器；make工具；用户可通过yum命令安装编译器及相关工具：yum -y install gcc gcc-c++ make；
 
-模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能你需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
+模块依赖性：Nginx的一些模块需要第三方库的支持，如rewrite模块需要pcre库，gzip模块需要zlib模块，ssl功能需要openssl库等。用户可通过yum命令安装这些依赖库：yum -y install pcre pcre-devel zlib zlib-devel openssl openssl-devel；
         
         
 下载
@@ -42,7 +42,7 @@ Nginx是开源软件，用户可以访问 http://nginx.org/ 网站获取源码�
 Nginx在Windows环境下安装
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理请求所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
+Nginx的windows版本使用原生win32 API（非Cygwin模拟层）。当前存在的已知问题：1.采用select作为通知方法，所以不具备很高的性能和扩展性；2.虽然可以启动若干工作进程运行，实际上只有一个进程在处理所有请求；3.一个工作进程只能处理不超过1024个并发连接；4.缓存和其他需要共享内存支持的模块在windows vista及后续版本的操作系统中无法工作，因为在这些操作系统中，地址空间的布局是随机的；5.除了XSLT过滤器、图像过滤器、GeoIP模块和嵌入Perl语言支持以外，Nginx的Windows版本与Unix版本相比，功能几乎齐全。
 
 安装Nginx的Windows版本，建议下载最新的1.3.13开发版本，因为开发分支上包含了所有已知的问题修复，尤其是针对Windows版本的问题修复。解压下载得到的zip文件，进入nginx-1.3.13目录，运行nginx。
 
@@ -254,10 +254,10 @@ Nginx的configure脚本支持以下选项:
 用户可以通过访问“http://localhost:80/index.html”页面来查看Nginx的欢迎页面。
 
 
-Nginx在Windows环境下查看nginx进程
+在Windows环境下查看nginx进程
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
-用户还可以通过命令行运行tasklist命令来查看nginx进程：
+用户还可以通过命令行运行tasklist命令来查看Nginx进程：
 
 .. code::
 
@@ -269,9 +269,9 @@ Nginx在Windows环境下查看nginx进程
         nginx.exe 462960 Console 1 5,280 K  
 
         
-如果nginx没有启动或没有得到预期展示页面，可查看error.log文件以查看失败原因。如果日志文件不存在，可在Windows事件日志中查看。
+如果Nginx没有启动或没有得到预期展示页面，可查看error.log文件以查看失败原因。如果日志文件不存在，可在Windows事件日志中查看。
 
-Nginx在Linux环境下查看nginx进程
+在Linux环境下查看Nginx进程
 ^^^^^^^^^^^^^^^^^^^^^^^^  
 用户可以通过执行ps/top命令来查看nginx进程：
 
@@ -345,11 +345,11 @@ Nginx的Windows二进制版本总是将调试日志开启的，因此只需要�
     #define NGX_LOG_DEBUG_ALL 0x7ffffff0
 
 其中默认有效的第一级别日志是"stderr"，"emerg"，"alert"，"crit"，"error"，"warn"，"notice"，"info"，"debug"。
-而Ngx_log.h内列出的其他debug第二级别日志："debug_core"，"debug_alloc"，"debug_mutex"，"debug_event"，"debug_http"，"debug_mail"，"debug_mysql"等则需要在配置Nginx时启动调试日志功能才能使用，并且用户可以通过修改Ngx_log.h及Ngx_log.c源码来更新debug第二级别。
+而ngx_log.h内列出的其他debug第二级别日志："debug_core"，"debug_alloc"，"debug_mutex"，"debug_event"，"debug_http"，"debug_mail"，"debug_mysql"等则需要在配置Nginx时启动调试日志功能才能使用，并且用户可以通过修改ngx_log.h及ngx_log.c源码来更新debug第二级别。
 
-我们再通过Ngx_log.c的部分代码分析下可以如何使用这些日志级别：
+我们再通过ngx_log.c的部分代码分析下可以如何使用这些日志级别：
 
-    Ngx_log.c代码
+    ngx_log.c代码
     
 .. code:: c
     
