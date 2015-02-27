@@ -1094,13 +1094,13 @@ ngx_list_t顾名思义，看起来好像是一个list的数据结构。这样的
 
     ngx_list_t *ngx_list_create(ngx_pool_t *pool, ngx_uint_t n, size_t size);
 
-该函数创建一个ngx_list_t类型的对象,并对该list的第一个节点分配存放元素的内存空间。
+该函数创建一个ngx_list_t类型的对象，并对该list的第一个节点分配存放元素的内存空间。
 
 :pool: 分配内存使用的pool。
 
-:n: 每个节点固定长度的数组的长度。
+:n: 每个节点（ngx_list_part_t）固定长度的数组的长度，即最多可以存放的元素个数。
 
-:size: 存放的具体元素的个数。
+:size: 每个元素所占用的内存大小。
 
 :返回值: 成功返回指向创建的ngx_list_t对象的指针，失败返回NULL。
 
