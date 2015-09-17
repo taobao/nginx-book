@@ -844,7 +844,7 @@ http static module的代码位于src/http/modules/ngx_http_static_module.c中，
 		NULL                                   /* merge location configuration */
 	};
 
-是非常的简洁吧，连任何与配置相关的函数都没有。对了，因为该模块没有提供任何配置指令。大家想想也就知道了，这个模块做的事情实在是太简单了，也确实没什么好配置的。唯一需要调用的函数是一个ngx_http_static_init函数。好了，来看一下这个函数都干了写什么。
+是非常的简洁吧，连任何与配置相关的函数都没有。对了，因为该模块没有提供任何配置指令。大家想想也就知道了，这个模块做的事情实在是太简单了，也确实没什么好配置的。唯一需要调用的函数是一个ngx_http_static_init函数。好了，来看一下这个函数都干了些什么。
 
 .. code:: c
 
@@ -1107,7 +1107,7 @@ http log module
 
 该模块提供了对于每一个http请求进行记录的功能，也就是我们见到的access.log。当然这个模块对于log提供了一些配置指令，使得可以比较方便的定制access.log。
 
-这个模块的代码位于src/http/modules/ngx_http_log_module.c，虽然这个模块的代码有接近1400行，但是主要的逻辑在于对日志本身格式啊，等细节的处理。我们在这里进行分析主要是关注，如何编写一个log handler的问题。
+这个模块的代码位于src/http/modules/ngx_http_log_module.c，虽然这个模块的代码有接近1400行，但是主要的逻辑在于对日志本身格式等细节的处理。我们在这里进行分析主要是关注，如何编写一个log handler的问题。
 
 由于log handler的时候，拿到的参数也是request这个东西，那么也就意味着我们如果需要，可以好好研究下这个结构，把我们需要的所有信息都记录下来。
 
