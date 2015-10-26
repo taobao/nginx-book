@@ -715,7 +715,7 @@ nginx为了处理带有通配符的域名的匹配问题，实现了ngx_hash_wil
     void *ngx_hash_find_wc_tail(ngx_hash_wildcard_t *hwc, u_char *name, size_t len);
 
 该函数查询包含通配符在末尾的key的hash表的。
-参数及返回值请参加上个函数的说明。
+参数及返回值请参见上个函数的说明。
 
 
 ngx_hash_combined_t(100%)
