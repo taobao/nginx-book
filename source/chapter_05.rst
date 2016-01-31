@@ -383,7 +383,7 @@ peer.get和peer.free回调函数
 :A: 初始化请求的过程中，建立了一张表，get函数负责每次从这张表中不重复的取出一个连接，当无法从表中取得一个新的连接时，即所有连接均不可用。
 
 :Q: 对于一个请求，peer.get函数可能被调用多次么？
-:A: 正式如此。当某次peer.get函数得到的连接地址连接不上，或者请求对应的服务器得到异常响应，nginx会执行ngx_http_upstream_next，然后可能再次调用peer.get函数尝试别的连接。upstream整体流程如下：
+:A: 正是如此。当某次peer.get函数得到的连接地址连接不上，或者请求对应的服务器得到异常响应，nginx会执行ngx_http_upstream_next，然后可能再次调用peer.get函数尝试别的连接。upstream整体流程如下：
 
 .. image:: http://tengine.taobao.org/book/_images/chapter-5-2.PNG
 
