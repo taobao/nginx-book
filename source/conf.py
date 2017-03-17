@@ -16,6 +16,7 @@ import sys, os
 _exts = "../exts"
 TITLE = u"Nginx开发从入门到精通"
 
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -29,8 +30,8 @@ TITLE = u"Nginx开发从入门到精通"
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 sys.path.append(os.path.abspath(_exts))
-extensions = ['sphinx.ext.todo', 'sphinx.ext.pngmath', 'sphinx.ext.ifconfig', 'number_ref',
-              'number_label', 'literal_include', 'block', 'image', 'basic', "latex_fix"]
+extensions = ['sphinx.ext.todo', 'sphinx.ext.imgmath', 'sphinx.ext.ifconfig', 'number_ref',
+              'number_label', 'literal_include', 'block', 'image', 'basic']
 
 #extensions.append('nohighlight')
 extensions.append('chinese_search')
@@ -189,6 +190,9 @@ latex_documents = [
   ('index', 'nginxbook.tex', TITLE,
    u'taobao server platform', 'manual'),
 ]
+latex_elements = {
+	'babel' :'\\usepackage[english]{babel}'
+}
 
 # The name of an image file (relative to this directory) to place at the top of
 # the title page.
@@ -205,7 +209,7 @@ latex_documents = [
 #latex_show_urls = False
 
 # Additional stuff for the LaTeX preamble.
-latex_preamble = r"""
+latex_elements['preamble'] = r"""
 % \pdfpagewidth 195mm
 % \pdfpageheight 271mm
 % \textwidth 6.0in
