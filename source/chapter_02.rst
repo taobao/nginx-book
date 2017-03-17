@@ -11,7 +11,7 @@ nginx在启动后，在unix系统中会以daemon的方式在后台运行，后�
 
 刚才讲到，nginx在启动后，会有一个master进程和多个worker进程。master进程主要用来管理worker进程，包含：接收来自外界的信号，向各worker进程发送信号，监控worker进程的运行状态，当worker进程退出后(异常情况下)，会自动重新启动新的worker进程。而基本的网络事件，则是放在worker进程中来处理了。多个worker进程之间是对等的，他们同等竞争来自客户端的请求，各进程互相之间是独立的。一个请求，只可能在一个worker进程中处理，一个worker进程，不可能处理其它进程的请求。worker进程的个数是可以设置的，一般我们会设置与机器cpu核数一致，这里面的原因与nginx的进程模型以及事件处理模型是分不开的。nginx的进程模型，可以由下图来表示：
 
-.. image:: http://tengine.taobao.org/book/_images/chapter-2-1.PNG
+.. image:: images/chapter-2-1.PNG
     :alt: nginx进程模型
     :align: center
 
@@ -131,7 +131,7 @@ http请求是典型的请求-响应类型的的网络协议，而http是文本�
 
 处理流程图：
 
-.. image:: http://tengine.taobao.org/book/_images/chapter-2-2.PNG
+.. image:: images/chapter-2-2.PNG
     :alt: 请求处理流程
     :align: center
 
@@ -1204,7 +1204,7 @@ ngx_queue_init()的宏定义如下：
 
 ngx_queue_insert_head()和ngx_queue_insert_after()都是往头部添加节点，ngx_queue_insert_tail()是往尾部添加节点。从代码可以看出哨兵节点的 prev 指向链表的尾数据节点，next 指向链表的头数据节点。另外ngx_queue_head()和ngx_queue_last()这两个宏分别可以得到头节点和尾节点。
 
-那假如现在有一个ngx_queue_t *q 指向的是链表中的数据节点的queue成员，如何得到ngx_http_upstream_keepalive_cache_t的数据呢？ nginx提供了ngx_queue_data()宏来得到ngx_http_upstream_keepalive_cache_t的指针，例如：
+那假如现在有一个ngx_queue_t *q 指向的是链表中的数据节点的queue成员，如何得到ngx_http_upstream_keepalive_cache_t的数据呢？ nginx提供了ngx_queue_data()宏来得到ngx_http_upstream_keepalive_cache_t的指针，例如 
 
 .. code:: c
 
