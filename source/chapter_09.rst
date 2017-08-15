@@ -59,7 +59,7 @@ auto脚本由一系列脚本组成，他们有一些是实现一些通用功能�
 
 这是configure源码开始执行的前三行，依次交由auto目录下面的option、init、sources来处理。
 
-2) auto/options主是处理用户输入的configure选项，以及输出帮助信息等。读者可以结合nginx的源码来阅读本章内容。由于篇幅关系，这里大致列出此文件的结构：
+2) auto/options主要是处理用户输入的configure选项，以及输出帮助信息等。读者可以结合nginx的源码来阅读本章内容。由于篇幅关系，这里大致列出此文件的结构：
 
 .. code:: c
 
