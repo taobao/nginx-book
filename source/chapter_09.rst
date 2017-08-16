@@ -387,7 +387,7 @@ nginx的configure会自动检测不同平台的特性，神奇之处就是auto/f
 
     #ngx_found 如果找到，并测试成功，其值为yes，否则其值为no
 
-看看ngx_feature的关键代码：
+看看auto/feature的关键代码：
 
 .. code:: c
 
