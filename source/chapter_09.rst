@@ -45,7 +45,7 @@ auto脚本
 
 auto脚本由一系列脚本组成，他们有一些是实现一些通用功能由其它脚本来调用（如have），有一些则是完成一些特定的功能（如option）。脚本之间的主要执行顺序及调用关系如下图所示（由上到下，表示主流程的执行）：
 
-.. image:: http://tengine.taobao.org/book/_images/chapter-9-1.jpg
+.. image:: https://github.com/taobao/nginx-book/blob/master/source/images/chapter-9-1.jpg
 
 接下来，我们结合代码来分析下configure的原理:
 
