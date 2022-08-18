@@ -30,7 +30,7 @@ def doctree_read(app, doctree):
     sec-test: 文章名, 标签名, 章节名，
     """
     labels = app.env.domains["std"].data["labels"]
-    for name, _ in doctree.nametypes.iteritems():
+    for name, _ in doctree.nametypes.items():
         if not name.startswith("sec-"): continue
         labelid = doctree.nameids[name]
         node = doctree.ids[labelid].parent
@@ -39,7 +39,7 @@ def doctree_read(app, doctree):
             labels[name] = app.env.docname, labelid, sectname
             
 def setup(app):
-    print "number_ref loaded"
+    print("number_ref loaded")
     old_visit_reference = latex.LaTeXTranslator.visit_reference
     def visit_reference(self, node):
         uri = node.get('refuri', '')
