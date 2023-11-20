@@ -80,7 +80,7 @@ def run(self):
     if linespec is not None:
         try:
             linelist = parselinenos(linespec, len(lines))
-        except ValueError, err:
+        except ValueError as err:
             return [document.reporter.warning(str(err), line=self.lineno)]
         lines = [lines[i] for i in linelist]
 
@@ -102,7 +102,7 @@ def run(self):
     section = self.options.get("section")
     if section is not None:
         section = "###%s###" % section
-        print section
+        print(section)
         use = False
         res = []
         for line in lines:

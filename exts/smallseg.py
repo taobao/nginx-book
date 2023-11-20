@@ -8,22 +8,22 @@ class SEG(object):
         _curpath=os.path.normpath(os.path.join(os.getcwd(),_localDir))
         curpath=_curpath
         self.d = {}
-        print >> sys.stderr,"loading dict..."
-        self.set([x.rstrip() for x in file(os.path.join(curpath,"main.dic")) ])
-        self.specialwords= set([x.rstrip().decode('utf-8') for x in file(os.path.join(curpath,"suffix.dic"))])
-        print >> sys.stderr,'dict ok.'
+        print("loading dict...", file=sys.stderr)
+        self.set([x.rstrip() for x in open(os.path.join(curpath,"main.dic")) ])
+        self.specialwords= set([x.rstrip() for x in open(os.path.join(curpath,"suffix.dic"))])
+        print("dict ok.", file=sys.stderr)
     #set dictionary(a list)
     def set(self,keywords):
         p = self.d
         q = {}
         k = ''
         for word in keywords:
-            word = (chr(11)+word).decode('utf-8')
+            word = chr(11)+word
             if len(word)>5:
                 continue
             p = self.d
             ln = len(word)
-            for i in xrange(ln-1,-1,-1):
+            for i in range(ln-1,-1,-1):
                 char = word[i].lower()
                 if p=='':
                     q[k] = {}
@@ -41,7 +41,7 @@ class SEG(object):
         if ln==1:
             return [s]
         R = []
-        for i in xrange(ln,1,-1):
+        for i in range(ln,1,-1):
             tmp = s[i-2:i]
             R.append(tmp)
         return R
@@ -51,9 +51,9 @@ class SEG(object):
         R = []
         tmp = re.sub(u"。|，|,|！|…|!|《|》|<|>|\"|'|:|：|？|\?|、|\||“|”|‘|’|；|—|（|）|·|\(|\)|　"," ",piece).split()
         ln1 = len(tmp)
-        for i in xrange(len(tmp)-1,-1,-1):
+        for i in range(len(tmp)-1,-1,-1):
             mc = re.split(r"([0-9A-Za-z\-\+#@_\.]+)",tmp[i])
-            for j in xrange(len(mc)-1,-1,-1):
+            for j in range(len(mc)-1,-1,-1):
                 r = mc[j]
                 if re.search(r"([0-9A-Za-z\-\+#@_\.]+)",r)!=None:
                     R.append(r)
@@ -86,7 +86,7 @@ class SEG(object):
                     elif mem2!=None:
                         delta = mem2[0]-i
                         if delta>=1:
-                            if (delta<5) and (re.search(ur"[\w\u2E80-\u9FFF]",t)!=None):
+                            if (delta<5) and (re.search(u"[\w\u2E80-\u9FFF]",t)!=None):
                                 pre = text[i-j]
                                 #print pre
                                 if not (pre in self.specialwords):

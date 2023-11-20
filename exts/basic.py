@@ -2,4 +2,4 @@
 import sphinx
 
 def setup(app):
-    app.add_javascript('booktools.js')
+    app.add_js_file('booktools.js')

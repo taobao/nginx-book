@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-from sphinx.util.compat import Directive
 import shutil
 import pdb
 import os.path as path
-from docutils.parsers.rst import directives
+from docutils.parsers.rst import Directive, directives
 from docutils import nodes
 
 def build_finished(app, ex):
@@ -11,7 +10,7 @@ def build_finished(app, ex):
         import glob
         curpath = path.split(__file__)[0]
         for fn in glob.glob(path.join(curpath, "latexstyle", "*.*")):
-            print "copy %s" % fn
+            print("copy %s" % fn)
             shutil.copy(fn, path.join(app.builder.outdir, path.split(fn)[-1]))
 
 class timgblock(nodes.Part, nodes.Element):

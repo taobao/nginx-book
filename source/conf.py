@@ -29,7 +29,7 @@ TITLE = u"Nginx开发从入门到精通"
 # Add any Sphinx extension module names here, as strings. They can be extensions
 # coming with Sphinx (named 'sphinx.ext.*') or your custom ones.
 sys.path.append(os.path.abspath(_exts))
-extensions = ['sphinx.ext.todo', 'sphinx.ext.pngmath', 'sphinx.ext.ifconfig', 'number_ref',
+extensions = ['sphinx.ext.todo', 'sphinx.ext.imgmath', 'sphinx.ext.ifconfig', 'number_ref',
               'number_label', 'literal_include', 'block', 'image', 'basic', "latex_fix"]
 
 #extensions.append('nohighlight')
@@ -269,10 +269,10 @@ latex_preamble = r"""
 \titlerule]
 %\definecolor{VerbatimBorderColor}{rgb}{0.2,0.2,0.2}
 \definecolor{VerbatimColor}{rgb}{0.95,0.95,0.95}
-""".decode("utf-8")
+"""
 
 latex_elements = {
-    "maketitle":ur"""
+    "maketitle":r"""
 \maketitle
 \renewcommand\contentsname{目 录}
 \renewcommand\partname{部分} 
@@ -283,7 +283,7 @@ latex_elements = {
 \chapter*{前言}
 \addcontentsline{toc}{chapter}{前言}
 """,
-    "tableofcontents":ur"""
+    "tableofcontents":r"""
 \tableofcontents
 \fancyhead[LE,RO]{%s}
 """ % TITLE

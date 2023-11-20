@@ -26,7 +26,7 @@ def replace_html_code_labels(t):
     return t
     
 def setup(app):
-    print "number_label loaded"
+    print("number_label loaded")
     old_depart_literal_block = latex.LaTeXTranslator.depart_literal_block
     def depart_literal_block(self, node):
         old_depart_literal_block(self, node)

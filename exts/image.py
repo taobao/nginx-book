@@ -51,7 +51,7 @@ def process_images(self, docname, doctree):
                             imgtype = imghdr.what(f)
                         finally:
                             f.close()
-                    except (OSError, IOError), err:
+                    except (OSError, IOError) as err:
                         self.warn(docname, 'image file %s not '
                                   'readable: %s' % (filename, err),
                                   node.line)
@@ -69,7 +69,7 @@ def process_images(self, docname, doctree):
                 continue
             self.images.add_file(docname, imgpath)
  
-from sphinx.util import url_re, get_matching_docs, docname_join, \
+from sphinx.util import url_re, docname_join, \
      FilenameUniqDict          
 
 def add_file(self, docname, newfile):
